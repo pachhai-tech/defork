@@ -1,90 +1,51 @@
-// dapp/src/lib/ipfs.ts
-// Unified IPFS helpers (NFT.Storage-backed)
-// Works 100% in the browser — no backend secrets needed.
+// Browser-side IPFS uploader using Storacha (W3UP protocol)
+import * as Storacha from "@storacha/client";
 
-import { NFTStorage } from "nft.storage";
+let _clientPromise: Promise<Storacha.Client> | null = null;
 
-const GATEWAYS = [
-  "https://nftstorage.link/ipfs/",
-  "https://ipfs.io/ipfs/",
-  "https://w3s.link/ipfs/"
-];
-
-// -------- URI helpers
-
-export function ipfsToHttp(uri: string, i = 0): string {
-  if (!uri) return uri;
-  if (!uri.startsWith("ipfs://")) return uri;
-  const cidPath = uri.slice("ipfs://".length);
-  const gw = GATEWAYS[i % GATEWAYS.length];
-  return gw + cidPath;
-}
-
-export async function fetchIPFS(
-  uri: string,
-  opts?: RequestInit
-): Promise<Response> {
-  // try gateways in order until one succeeds
-  let lastErr: unknown;
-  for (let i = 0; i < GATEWAYS.length; i++) {
-    try {
-      const r = await fetch(ipfsToHttp(uri, i), opts);
-      if (r.ok) return r;
-      lastErr = new Error(`HTTP ${r.status}`);
-    } catch (e) {
-      lastErr = e;
-    }
+async function getClient(): Promise<Storacha.Client> {
+  if (!_clientPromise) {
+    _clientPromise = (async () => {
+      const client = await Storacha.create();
+      const spaces = await client.spaces();
+      if (spaces.length === 0) {
+        throw new Error(
+          'No Storacha space connected. Use "Connect storage" to create/register one.'
+        );
+      }
+      await client.setCurrentSpace(spaces[0].did());
+      return client;
+    })();
   }
-  throw lastErr instanceof Error ? lastErr : new Error("IPFS fetch failed");
+  return _clientPromise;
 }
 
-// -------- NFT.Storage client
-
-let _client: NFTStorage | null = null;
-function getClient(): NFTStorage {
-  if (_client) return _client;
-  const token = import.meta.env.VITE_NFTSTORAGE_TOKEN as string | undefined;
-  if (!token) {
-    throw new Error("VITE_NFTSTORAGE_TOKEN not set — add it to dapp/.env");
-  }
-  _client = new NFTStorage({ token });
-  return _client;
+export function ipfsToHttp(uri: string) {
+  if (!uri?.startsWith("ipfs://")) return uri;
+  return `https://storacha.link/ipfs/${uri.slice(7)}`;
 }
 
-// -------- Write helpers
-
-export async function putJSON(
-  obj: any,
-  filename = "metadata.json"
-): Promise<string> {
-  // store as a single blob (simplest); returns ipfs://<cid>
+export async function uploadJSON(obj: any, name = "metadata.json") {
+  const client = await getClient();
   const blob = new Blob([JSON.stringify(obj)], { type: "application/json" });
-  const cid = await getClient().storeBlob(blob);
+  const file = new File([blob], name, { type: "application/json" });
+  const cid = await client.uploadFile(file);
   return `ipfs://${cid}`;
 }
 
-/**
- * Store a single File/Blob. Returns ipfs://<cid>
- */
-export async function putBlob(data: Blob | File): Promise<string> {
-  const cid = await getClient().storeBlob(data);
+export async function uploadBlob(
+  blob: Blob,
+  name = "file.bin",
+  mime = "application/octet-stream"
+) {
+  const client = await getClient();
+  const file = new File([blob], name, { type: mime });
+  const cid = await client.uploadFile(file);
   return `ipfs://${cid}`;
 }
 
-/**
- * Store a named directory of files.
- * Pass an array of File objects (names matter).
- * Returns { cid, uri, uriFor(name) } where:
- *  - uri is "ipfs://<cid>"
- *  - uriFor('meta.json') -> "ipfs://<cid>/meta.json"
- */
-export async function putDirectory(files: File[]) {
-  if (!files?.length) throw new Error("putDirectory: no files");
-  const cid = await getClient().storeDirectory(files);
-  const base = `ipfs://${cid}`;
-  return {
-    cid,
-    uri: base,
-    uriFor: (name: string) => `${base}/${encodeURIComponent(name)}`
-  };
+export async function uploadDirectory(files: File[]) {
+  const client = await getClient();
+  const cid = await client.uploadDirectory(files);
+  return `ipfs://${cid}`;
 }

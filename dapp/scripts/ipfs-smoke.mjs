@@ -1,20 +1,14 @@
-// Quick browserless smoke test via node (uses your .env)
-import "dotenv/config";
-import { NFTStorage, File } from "nft.storage";
-import fs from "node:fs";
+import { PinataSDK } from "pinata";
 
-const token = process.env.VITE_NFTSTORAGE_TOKEN;
-if (!token) throw new Error("Set VITE_NFTSTORAGE_TOKEN in your env");
+const JWT = process.env.PINATA_JWT;
+if (!JWT) throw new Error("Set PINATA_JWT in your shell/CI");
 
-const client = new NFTStorage({ token });
-const cid = await client.storeBlob(
-  new Blob([JSON.stringify({ ok: true })], { type: "application/json" })
-);
-console.log("Stored JSON CID:", cid);
+const pinata = new PinataSDK({ pinataJwt: JWT });
 
-const imgPath = "./public/icon.svg"; // or any small file you have
-if (fs.existsSync(imgPath)) {
-  const buf = fs.readFileSync(imgPath);
-  const imgCid = await client.storeBlob(new Blob([buf]));
-  console.log("Stored file CID:", imgCid);
-}
+const blob = new Blob([JSON.stringify({ ok: true, t: Date.now() })], {
+  type: "application/json"
+});
+const file = new File([blob], "meta.json", { type: "application/json" });
+
+const res = await pinata.upload.public.file(file).name("defork-smoke");
+console.log("CID:", res.cid);

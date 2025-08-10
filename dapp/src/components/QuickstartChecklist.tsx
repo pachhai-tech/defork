@@ -4,7 +4,13 @@ import { readContract } from "@wagmi/core";
 import { config } from "../config/wallet";
 import { ABI, CONTRACT_ADDRESS } from "../config/contract";
 import { REGISTRY_ADDRESS } from "../config/registry";
-import { isAddress, getAddress } from "viem";
+import {
+  isAddress,
+  getAddress,
+  defineChain,
+  createPublicClient,
+  http
+} from "viem";
 
 type Check = { label: string; ok: boolean | null; detail?: string };
 
@@ -24,7 +30,6 @@ export function QuickstartChecklist() {
         rpc: import.meta.env.VITE_RPC_URL,
         nft: import.meta.env.VITE_CONTRACT_ADDRESS,
         reg: import.meta.env.VITE_REGISTRY_ADDRESS,
-        nftstorage: import.meta.env.VITE_NFTSTORAGE_TOKEN,
         wc: import.meta.env.VITE_WALLETCONNECT_PROJECT_ID
       };
       list.push({
@@ -48,11 +53,6 @@ export function QuickstartChecklist() {
         detail: env.reg || ""
       });
       list.push({
-        label: ".env: VITE_NFTSTORAGE_TOKEN",
-        ok: !!env.nftstorage,
-        detail: env.nftstorage ? "present" : "missing"
-      });
-      list.push({
         label: ".env: VITE_WALLETCONNECT_PROJECT_ID",
         ok: !!env.wc,
         detail: env.wc ? "present" : "missing"
@@ -67,7 +67,6 @@ export function QuickstartChecklist() {
 
       // 3) RPC reachability
       try {
-        const { createPublicClient, http, defineChain } = await import("viem");
         const chain = defineChain({
           id: Number(env.chainId || 0),
           name: "Configured Chain",
@@ -112,7 +111,34 @@ export function QuickstartChecklist() {
         });
       }
 
-      // 5) Registry address sanity
+      // 5) W3UP storage (browser) – space connected?
+      try {
+        const Storacha = await import("@storacha/client");
+        const client = await Storacha.create();
+        const spaces = await client.spaces();
+        if (spaces.length > 0) {
+          await client.setCurrentSpace(spaces[0].did());
+          list.push({
+            label: "Storacha storage connected",
+            ok: true,
+            detail: spaces[0].did()
+          });
+        } else {
+          list.push({
+            label: "Storacha storage connected",
+            ok: false,
+            detail: "no space; click “Connect storage”"
+          });
+        }
+      } catch (e: any) {
+        list.push({
+          label: "Storacha storage connected",
+          ok: false,
+          detail: e?.message || "init failed"
+        });
+      }
+
+      // 6) Registry address sanity
       list.push({
         label: "Registry address format",
         ok: isAddress(REGISTRY_ADDRESS),
@@ -159,8 +185,8 @@ export function QuickstartChecklist() {
         ))}
       </ul>
       <div className="text-xs opacity-60">
-        Tip: edit <code>dapp/.env</code> and refresh. If the contract is
-        deployed but unreachable, double-check chain ID, RPC URL, and address.
+        Tip: use the header **Connect storage** button to complete W3UP login
+        (magic link).
       </div>
     </section>
   );

@@ -1,4 +1,5 @@
-import { NFTStorage, File, Blob } from "nft.storage";
+// dapp/scripts/ipfs-deploy.mjs
+import { PinataSDK } from "pinata";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -6,17 +7,17 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const TOKEN =
-  process.env.VITE_NFTSTORAGE_TOKEN ||
-  process.env.NFT_STORAGE_TOKEN ||
-  process.env.NFTSTORAGE_TOKEN;
-
-if (!TOKEN) {
-  console.error("Missing VITE_NFTSTORAGE_TOKEN (or NFT_STORAGE_TOKEN)");
+const JWT = process.env.PINATA_JWT;
+if (!JWT) {
+  console.error("Missing PINATA_JWT");
   process.exit(1);
 }
 
-const client = new NFTStorage({ token: TOKEN });
+const pinata = new PinataSDK({
+  pinataJwt: JWT
+  // optional: set your dedicated gateway domain if you want:
+  // pinataGateway: process.env.PINATA_GATEWAY
+});
 
 function walkDir(dir) {
   const files = [];
@@ -28,44 +29,39 @@ function walkDir(dir) {
   return files;
 }
 
-function mimeTypeFor(name) {
-  const n = name.toLowerCase();
-  if (n.endsWith(".html")) return "text/html";
-  if (n.endsWith(".css")) return "text/css";
-  if (n.endsWith(".js")) return "application/javascript";
-  if (n.endsWith(".json")) return "application/json";
-  if (n.endsWith(".svg")) return "image/svg+xml";
-  if (n.endsWith(".png")) return "image/png";
-  if (n.endsWith(".jpg") || n.endsWith(".jpeg")) return "image/jpeg";
-  if (n.endsWith(".webp")) return "image/webp";
-  if (n.endsWith(".wasm")) return "application/wasm";
-  if (n.endsWith(".map")) return "application/json";
-  return "application/octet-stream";
-}
-
 async function main() {
   const root = path.join(__dirname, "..", "dist");
   if (!fs.existsSync(root)) {
-    console.error("dist/ not found; build first (npm run build)");
+    console.error("dist/ not found; build first");
     process.exit(1);
   }
 
-  const files = walkDir(root).map((fp) => {
+  // Build an array of File objects. The second arg (name) can include slashes.
+  // Pinata’s fileArray uploads these as a single folder preserving the structure.
+  // https://docs.pinata.cloud/sdk/upload/public/file-array
+  const files = [];
+  for (const fp of walkDir(root)) {
     const rel = path.relative(root, fp).replace(/\\/g, "/");
     const buf = fs.readFileSync(fp);
-    return new File([buf], rel, { type: mimeTypeFor(rel) });
-  });
+    const type = rel.endsWith(".html")
+      ? "text/html"
+      : rel.endsWith(".js")
+      ? "application/javascript"
+      : rel.endsWith(".css")
+      ? "text/css"
+      : rel.endsWith(".json")
+      ? "application/json"
+      : "application/octet-stream";
+    const file = new File([buf], rel, { type });
+    files.push(file);
+  }
 
-  const cid = await client.storeDirectory(files);
-
-  console.log(cid);
-  fs.writeFileSync(path.join(__dirname, "cid.txt"), String(cid));
-
-  console.error(`\nGateway URLs:
-  - https://nftstorage.link/ipfs/${cid}/
-  - https://ipfs.io/ipfs/${cid}/
-  - https://w3s.link/ipfs/${cid}/
-`);
+  const upload = await pinata.upload.public
+    .fileArray(files)
+    .name("defork-dapp-dist");
+  // upload: { cid, ... }
+  console.log(upload.cid);
+  fs.writeFileSync(path.join(__dirname, "cid.txt"), upload.cid, "utf8");
 }
 
 main().catch((e) => {
