@@ -1,66 +1,167 @@
-import { useEffect, useState } from 'react'
-import { useAccount } from 'wagmi'
-import { ABI, CONTRACT_ADDRESS } from '../config/contract'
-import { REGISTRY_ABI, REGISTRY_ADDRESS } from '../config/registry'
-import { readContract } from '@wagmi/core'
-import { config } from '../config/wallet'
+import { useEffect, useState } from "react";
+import { useAccount } from "wagmi";
+import { readContract } from "@wagmi/core";
+import { config } from "../config/wallet";
+import { ABI, CONTRACT_ADDRESS } from "../config/contract";
+import { REGISTRY_ADDRESS } from "../config/registry";
+import { isAddress, getAddress } from "viem";
 
-type Check = { label: string, ok: boolean | null, detail?: string }
+type Check = { label: string; ok: boolean | null; detail?: string };
 
 export function QuickstartChecklist() {
-  const { address, isConnected } = useAccount()
-  const [checks, setChecks] = useState<Check[]>([])
+  const { address, isConnected } = useAccount();
+  const [checks, setChecks] = useState<Check[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function run() {
-      const list: Check[] = []
+    (async () => {
+      setLoading(true);
+      const list: Check[] = [];
 
-      // .env vars
-      const vars = [
-        'VITE_CHAIN_ID','VITE_RPC_URL','VITE_CONTRACT_ADDRESS','VITE_REGISTRY_ADDRESS','VITE_WEB3STORAGE_TOKEN','VITE_WALLETCONNECT_PROJECT_ID'
-      ]
-      for (const v of vars) {
-        list.push({ label: `.env: ${v}`, ok: !!import.meta.env[v] })
-      }
+      // 1) .env vars
+      const env = {
+        chainId: import.meta.env.VITE_CHAIN_ID,
+        rpc: import.meta.env.VITE_RPC_URL,
+        nft: import.meta.env.VITE_CONTRACT_ADDRESS,
+        reg: import.meta.env.VITE_REGISTRY_ADDRESS,
+        nftstorage: import.meta.env.VITE_NFTSTORAGE_TOKEN,
+        wc: import.meta.env.VITE_WALLETCONNECT_PROJECT_ID
+      };
+      list.push({
+        label: ".env: VITE_CHAIN_ID",
+        ok: !!env.chainId,
+        detail: String(env.chainId || "")
+      });
+      list.push({
+        label: ".env: VITE_RPC_URL",
+        ok: !!env.rpc,
+        detail: env.rpc || ""
+      });
+      list.push({
+        label: ".env: VITE_CONTRACT_ADDRESS",
+        ok: !!env.nft && isAddress(env.nft),
+        detail: env.nft || ""
+      });
+      list.push({
+        label: ".env: VITE_REGISTRY_ADDRESS",
+        ok: !!env.reg && isAddress(env.reg),
+        detail: env.reg || ""
+      });
+      list.push({
+        label: ".env: VITE_NFTSTORAGE_TOKEN",
+        ok: !!env.nftstorage,
+        detail: env.nftstorage ? "present" : "missing"
+      });
+      list.push({
+        label: ".env: VITE_WALLETCONNECT_PROJECT_ID",
+        ok: !!env.wc,
+        detail: env.wc ? "present" : "missing"
+      });
 
-      // contract reachable?
+      // 2) Wallet connection
+      list.push({
+        label: "Wallet connected",
+        ok: isConnected,
+        detail: isConnected ? String(address) : "not connected"
+      });
+
+      // 3) RPC reachability
       try {
-        await readContract(config, { address: CONTRACT_ADDRESS, abi: ABI, functionName: 'owner' })
-        list.push({ label: 'Contract reachable', ok: true })
-      } catch (e) {
-        list.push({ label: 'Contract reachable', ok: false, detail: String(e) })
+        const { createPublicClient, http, defineChain } = await import("viem");
+        const chain = defineChain({
+          id: Number(env.chainId || 0),
+          name: "Configured Chain",
+          nativeCurrency: { name: "Native", symbol: "NATIVE", decimals: 18 },
+          rpcUrls: { default: { http: [env.rpc || ""] } }
+        });
+        const client = createPublicClient({
+          chain,
+          transport: http(env.rpc || "")
+        });
+        const bn = await client.getBlockNumber();
+        list.push({
+          label: "RPC reachable",
+          ok: typeof bn === "bigint",
+          detail: typeof bn === "bigint" ? `block ${bn}` : "failed"
+        });
+      } catch (e: any) {
+        list.push({
+          label: "RPC reachable",
+          ok: false,
+          detail: e?.message || "failed"
+        });
       }
 
-      // wallet
-      list.push({ label: 'Wallet connected', ok: isConnected })
-
-      // IPFS token test
+      // 4) Contract callable: totalSupply()
       try {
-        const r = await fetch('https://api.web3.storage/user/uploads', { headers: { Authorization: `Bearer ${import.meta.env.VITE_WEB3STORAGE_TOKEN}` } })
-        list.push({ label: 'Web3.Storage token valid', ok: r.ok })
-      } catch (e) {
-        list.push({ label: 'Web3.Storage token valid', ok: false, detail: String(e) })
+        const ts = (await readContract(config, {
+          address: CONTRACT_ADDRESS,
+          abi: ABI,
+          functionName: "totalSupply"
+        })) as bigint;
+        list.push({
+          label: "Contract reachable",
+          ok: true,
+          detail: `totalSupply=${ts.toString()}`
+        });
+      } catch (e: any) {
+        list.push({
+          label: "Contract reachable",
+          ok: false,
+          detail: e?.shortMessage || e?.message || "read failed"
+        });
       }
 
-      setChecks(list)
-    }
-    run()
-  }, [isConnected])
+      // 5) Registry address sanity
+      list.push({
+        label: "Registry address format",
+        ok: isAddress(REGISTRY_ADDRESS),
+        detail: isAddress(REGISTRY_ADDRESS)
+          ? getAddress(REGISTRY_ADDRESS)
+          : "invalid"
+      });
 
-  if (!checks.length) return null
+      setChecks(list);
+      setLoading(false);
+    })();
+  }, [address, isConnected]);
 
   return (
     <section className="border rounded p-4 bg-white shadow space-y-2">
-      <div className="font-semibold">Quickstart Checklist</div>
-      <ul className="text-sm">
-        {checks.map((c,i)=>(
+      <div className="flex items-center justify-between">
+        <div className="font-semibold">Quickstart Checklist</div>
+        <button
+          className="px-3 py-1 border rounded text-sm"
+          onClick={() => location.reload()}
+        >
+          {loading ? "Checking…" : "Re-run checks"}
+        </button>
+      </div>
+      <ul className="text-sm space-y-1">
+        {checks.map((c, i) => (
           <li key={i} className="flex items-center gap-2">
-            <span>{c.ok ? '✅' : c.ok === false ? '❌' : '…'}</span>
-            <span>{c.label}</span>
-            {c.detail && <span className="text-xs opacity-60">{c.detail}</span>}
+            <span
+              className={
+                c.ok
+                  ? "text-green-600"
+                  : c.ok === false
+                  ? "text-red-600"
+                  : "opacity-60"
+              }
+            >
+              {c.ok ? "✔" : c.ok === false ? "✖" : "…"}
+            </span>
+            <span className="min-w-[220px]">{c.label}</span>
+            {c.detail && (
+              <span className="text-xs opacity-70 break-all">{c.detail}</span>
+            )}
           </li>
         ))}
       </ul>
+      <div className="text-xs opacity-60">
+        Tip: edit <code>dapp/.env</code> and refresh. If the contract is
+        deployed but unreachable, double-check chain ID, RPC URL, and address.
+      </div>
     </section>
-  )
+  );
 }

@@ -1,46 +1,90 @@
-import { Web3Storage, File } from 'web3.storage'
+// dapp/src/lib/ipfs.ts
+// Unified IPFS helpers (NFT.Storage-backed)
+// Works 100% in the browser — no backend secrets needed.
 
-const client = new Web3Storage({ token: import.meta.env.VITE_WEB3STORAGE_TOKEN })
-const PINATA_JWT = import.meta.env.VITE_PINATA_JWT
+import { NFTStorage } from "nft.storage";
 
 const GATEWAYS = [
-  'https://ipfs.io/ipfs/',
-  'https://w3s.link/ipfs/',
-  'https://cloudflare-ipfs.com/ipfs/'
-]
+  "https://nftstorage.link/ipfs/",
+  "https://ipfs.io/ipfs/",
+  "https://w3s.link/ipfs/"
+];
 
-export async function putFile(file: Blob, name: string) {
-  const cid = await client.put([new File([file], name)], { wrapWithDirectory: false })
-  // Optional secondary pin via Pinata (by hash) to add redundancy
-  if (PINATA_JWT) {
+// -------- URI helpers
+
+export function ipfsToHttp(uri: string, i = 0): string {
+  if (!uri) return uri;
+  if (!uri.startsWith("ipfs://")) return uri;
+  const cidPath = uri.slice("ipfs://".length);
+  const gw = GATEWAYS[i % GATEWAYS.length];
+  return gw + cidPath;
+}
+
+export async function fetchIPFS(
+  uri: string,
+  opts?: RequestInit
+): Promise<Response> {
+  // try gateways in order until one succeeds
+  let lastErr: unknown;
+  for (let i = 0; i < GATEWAYS.length; i++) {
     try {
-      await fetch('https://api.pinata.cloud/pinning/pinByHash', {
-        method: 'POST',
-        headers: { 'Content-Type':'application/json', 'Authorization': `Bearer ${PINATA_JWT}` },
-        body: JSON.stringify({ hashToPin: cid, pinataOptions: { cidVersion: 1 } })
-      })
-    } catch {}
+      const r = await fetch(ipfsToHttp(uri, i), opts);
+      if (r.ok) return r;
+      lastErr = new Error(`HTTP ${r.status}`);
+    } catch (e) {
+      lastErr = e;
+    }
   }
-  return `ipfs://${cid}`
+  throw lastErr instanceof Error ? lastErr : new Error("IPFS fetch failed");
 }
 
-export async function putJSON(obj: unknown, name = 'metadata.json') {
-  const blob = new Blob([JSON.stringify(obj)], { type: 'application/json' })
-  return putFile(blob, name)
-}
+// -------- NFT.Storage client
 
-export function ipfsToHttp(uri: string) {
-  const cid = uri.replace('ipfs://','')
-  return `${GATEWAYS[0]}${cid}`
-}
-
-export async function fetchIPFS(uri: string) {
-  const cid = uri.replace('ipfs://','')
-  for (const gw of GATEWAYS) {
-    try {
-      const res = await fetch(`${gw}${cid}`, { cache: 'no-cache' })
-      if (res.ok) return res
-    } catch {}
+let _client: NFTStorage | null = null;
+function getClient(): NFTStorage {
+  if (_client) return _client;
+  const token = import.meta.env.VITE_NFTSTORAGE_TOKEN as string | undefined;
+  if (!token) {
+    throw new Error("VITE_NFTSTORAGE_TOKEN not set — add it to dapp/.env");
   }
-  throw new Error('All IPFS gateways failed')
+  _client = new NFTStorage({ token });
+  return _client;
+}
+
+// -------- Write helpers
+
+export async function putJSON(
+  obj: any,
+  filename = "metadata.json"
+): Promise<string> {
+  // store as a single blob (simplest); returns ipfs://<cid>
+  const blob = new Blob([JSON.stringify(obj)], { type: "application/json" });
+  const cid = await getClient().storeBlob(blob);
+  return `ipfs://${cid}`;
+}
+
+/**
+ * Store a single File/Blob. Returns ipfs://<cid>
+ */
+export async function putBlob(data: Blob | File): Promise<string> {
+  const cid = await getClient().storeBlob(data);
+  return `ipfs://${cid}`;
+}
+
+/**
+ * Store a named directory of files.
+ * Pass an array of File objects (names matter).
+ * Returns { cid, uri, uriFor(name) } where:
+ *  - uri is "ipfs://<cid>"
+ *  - uriFor('meta.json') -> "ipfs://<cid>/meta.json"
+ */
+export async function putDirectory(files: File[]) {
+  if (!files?.length) throw new Error("putDirectory: no files");
+  const cid = await getClient().storeDirectory(files);
+  const base = `ipfs://${cid}`;
+  return {
+    cid,
+    uri: base,
+    uriFor: (name: string) => `${base}/${encodeURIComponent(name)}`
+  };
 }
