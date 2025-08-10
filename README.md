@@ -58,7 +58,7 @@ cd contracts
 cp .env.example .env
 
 forge build
-forge script script/Deploy.s.sol:Deploy --rpc-url testnet --broadcast -vvvv
+forge script script/Deploy.s.sol:Deploy --rpc-url testnet --broadcast -vvvv --gas-price 100000000000000
 ```
 
 Copy the printed address into `dapp/.env` as `VITE_CONTRACT_ADDRESS`, set `VITE_CHAIN_ID` to `296` (testnet) or your target, and `VITE_RPC_URL` to the Hashio endpoint above.
@@ -74,7 +74,7 @@ source .env
 Verify StoryForkNFT contract:
 
 ```bash
-forge verify-contract 0xAA31b224C46A9358d8536fc383dB6F2c6B58d8bC \
+forge verify-contract 0x9045C586971F813b0F048F72030c05F3E121fE9D \
  src/StoryForkNFT.sol:StoryForkNFT \
  --chain-id 296 \
  --verifier sourcify \
@@ -85,9 +85,9 @@ forge verify-contract 0xAA31b224C46A9358d8536fc383dB6F2c6B58d8bC \
 Verify ForkRegistry contract:
 
 ```bash
-NFT_ADDR=0xAA31b224C46A9358d8536fc383dB6F2c6B58d8bC
+NFT_ADDR=0x9045C586971F813b0F048F72030c05F3E121fE9D
 
-forge verify-contract 0x950437A4F97F2832ACdad3795f4dF3011e9Ed378 \
+forge verify-contract 0xefea6A7f16fd3E0E89d0ACc8f6676398D7D762EB \
   src/ForkRegistry.sol:ForkRegistry \
   --chain-id 296 \
   --verifier sourcify \
