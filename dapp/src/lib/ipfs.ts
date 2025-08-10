@@ -1,4 +1,6 @@
 // Browser-side IPFS uploader using Storacha (W3UP protocol)
+// Adds compat helpers: fetchIPFS, putJSON, putFile so older code keeps working.
+
 import * as Storacha from "@storacha/client";
 
 let _clientPromise: Promise<Storacha.Client> | null = null;
@@ -20,10 +22,40 @@ async function getClient(): Promise<Storacha.Client> {
   return _clientPromise;
 }
 
-export function ipfsToHttp(uri: string) {
-  if (!uri?.startsWith("ipfs://")) return uri;
-  return `https://storacha.link/ipfs/${uri.slice(7)}`;
+// -------- Gateways & helpers
+
+const GATEWAYS = [
+  "https://storacha.link/ipfs/",
+  "https://ipfs.io/ipfs/",
+  "https://w3s.link/ipfs/"
+];
+
+export function ipfsToHttp(uri: string, i = 0): string {
+  if (!uri || !uri.startsWith("ipfs://")) return uri;
+  const cidPath = uri.slice("ipfs://".length);
+  const gw = GATEWAYS[i % GATEWAYS.length];
+  return gw + cidPath;
 }
+
+/** Try multiple public gateways until one responds OK. */
+export async function fetchIPFS(
+  uri: string,
+  opts?: RequestInit
+): Promise<Response> {
+  let lastErr: unknown;
+  for (let i = 0; i < GATEWAYS.length; i++) {
+    try {
+      const r = await fetch(ipfsToHttp(uri, i), opts);
+      if (r.ok) return r;
+      lastErr = new Error(`HTTP ${r.status}`);
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error("IPFS fetch failed");
+}
+
+// -------- Writes
 
 export async function uploadJSON(obj: any, name = "metadata.json") {
   const client = await getClient();
@@ -48,4 +80,14 @@ export async function uploadDirectory(files: File[]) {
   const client = await getClient();
   const cid = await client.uploadDirectory(files);
   return `ipfs://${cid}`;
+}
+
+// -------- Back-compat aliases (so existing imports keep working)
+
+export const putJSON = uploadJSON;
+export function putFile(data: Blob | File, name = "file.bin") {
+  // If it's already a File, preserve its name/type; otherwise wrap the Blob.
+  if (data instanceof File)
+    return uploadBlob(data, data.name, data.type || "application/octet-stream");
+  return uploadBlob(data, name);
 }

@@ -1,100 +1,104 @@
-import { useEffect, useState } from 'react'
-import { config } from '../config/wallet'
-import { ABI, CONTRACT_ADDRESS } from '../config/contract'
-import { REGISTRY_ABI, REGISTRY_ADDRESS } from '../config/registry'
-import { getLogs, readContract } from '@wagmi/core'
+import { useEffect, useState } from "react";
+import {
+  createPublicClient,
+  defineChain,
+  http,
+  decodeEventLog,
+  type Log
+} from "viem";
+import { ABI, CONTRACT_ADDRESS } from "../config/contract";
+import { ipfsToHttp } from "../lib/ipfs";
 
-type Row = { ts?: number, blockNumber: bigint, name: string, desc: string }
+type Decoded = {
+  blockNumber: bigint;
+  txHash: `0x${string}`;
+  eventName: string;
+  args: Record<string, unknown>;
+};
 
 export function AuditLog() {
-  const [rows, setRows] = useState<Row[]>([])
-  const [loading, setLoading] = useState(false)
+  const [rows, setRows] = useState<Decoded[]>([]);
+  const [err, setErr] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  async function load() {
-    setLoading(true)
-    try {
-      const [genesis, uriUpd, hashSet, forks] = await Promise.all([
-        getLogs(config, {
+  useEffect(() => {
+    (async () => {
+      try {
+        setLoading(true);
+        setErr(null);
+
+        // Build a viem client from your Vite env (no wagmi dependency here)
+        const chain = defineChain({
+          id: Number(import.meta.env.VITE_CHAIN_ID || 0),
+          name: "Configured",
+          nativeCurrency: { name: "Native", symbol: "NATIVE", decimals: 18 },
+          rpcUrls: { default: { http: [import.meta.env.VITE_RPC_URL || ""] } }
+        });
+        const client = createPublicClient({
+          chain,
+          transport: http(import.meta.env.VITE_RPC_URL || "")
+        });
+
+        // Pull recent logs to avoid huge scans
+        const latest = await client.getBlockNumber();
+        const span = 10_000n;
+        const fromBlock = latest > span ? latest - span : 0n;
+
+        const logs = await client.getLogs({
           address: CONTRACT_ADDRESS,
-          event: {
-            type:'event', name:'GenesisCreated',
-            inputs: [
-              { indexed: true, name:'tokenId', type:'uint256' },
-              { indexed: true, name:'author', type:'address' },
-              { indexed: false, name:'tokenURI', type:'string' },
-            ]
-          } as any,
-          fromBlock: 0n, toBlock: 'latest'
-        }),
-        getLogs(config, {
-          address: CONTRACT_ADDRESS,
-          event: {
-            type:'event', name:'TokenURIUpdated',
-            inputs: [
-              { indexed: true, name:'tokenId', type:'uint256' },
-              { indexed: false, name:'newTokenURI', type:'string' },
-            ]
-          } as any,
-          fromBlock: 0n, toBlock: 'latest'
-        }),
-        getLogs(config, {
-          address: CONTRACT_ADDRESS,
-          event: {
-            type:'event', name:'ContentHashSet',
-            inputs: [
-              { indexed: true, name:'tokenId', type:'uint256' },
-              { indexed: false, name:'contentHash', type:'bytes32' },
-            ]
-          } as any,
-          fromBlock: 0n, toBlock: 'latest'
-        }),
-        getLogs(config, {
-          address: REGISTRY_ADDRESS,
-          event: {
-            type:'event', name:'ForkRegistered',
-            inputs: [
-              { indexed: true, name:'parentTokenId', type:'uint256' },
-              { indexed: true, name:'childTokenId', type:'uint256' },
-              { indexed: true, name:'caller', type:'address' },
-            ]
-          } as any,
-          fromBlock: 0n, toBlock: 'latest'
-        }),
-      ])
+          fromBlock,
+          toBlock: latest
+        });
 
-      const list: Row[] = []
-      for (const l of genesis) list.push({ blockNumber: l.blockNumber!, name: 'GenesisCreated', desc: `#${l.args.tokenId} by ${l.args.author}` })
-      for (const l of uriUpd) list.push({ blockNumber: l.blockNumber!, name: 'TokenURIUpdated', desc: `#${l.args.tokenId}` })
-      for (const l of hashSet) list.push({ blockNumber: l.blockNumber!, name: 'ContentHashSet', desc: `#${l.args.tokenId}` })
-      for (const l of forks) list.push({ blockNumber: l.blockNumber!, name: 'ForkRegistered', desc: `#${l.args.parentTokenId} → #${l.args.childTokenId}` })
+        const decoded: Decoded[] = [];
+        for (const log of logs as Log[]) {
+          try {
+            const d = decodeEventLog({
+              abi: ABI,
+              data: log.data,
+              topics: log.topics
+            });
+            decoded.push({
+              blockNumber: log.blockNumber!,
+              txHash: log.transactionHash!,
+              eventName: d.eventName,
+              args: (d.args || {}) as any
+            });
+          } catch {
+            // Not one of our ABI events — ignore
+          }
+        }
 
-      list.sort((a,b) => (a.blockNumber < b.blockNumber ? -1 : 1))
-      setRows(list.reverse())
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => { load() }, [])
+        // newest first
+        decoded.sort((a, b) => (a.blockNumber > b.blockNumber ? -1 : 1));
+        setRows(decoded.slice(0, 100));
+      } catch (e: any) {
+        setErr(e?.message || String(e));
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
 
   return (
-    <section className="space-y-3 border rounded p-4">
-      <div className="flex items-center justify-between">
-        <div className="font-semibold">Audit Log</div>
-        <button className="px-3 py-1 border rounded" onClick={load} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh'}</button>
-      </div>
-      <div className="text-xs opacity-70">Aggregates on-chain events: GenesisCreated, TokenURIUpdated, ContentHashSet, ForkRegistered.</div>
-      <div className="max-h-[420px] overflow-auto">
-        <table className="w-full text-sm">
-          <thead><tr className="text-left opacity-70"><th className="p-2">Block</th><th className="p-2">Event</th><th className="p-2">Details</th></tr></thead>
-          <tbody>
-            {rows.map((r,i)=>(
-              <tr key={i} className="border-t"><td className="p-2 font-mono">{String(r.blockNumber)}</td><td className="p-2">{r.name}</td><td className="p-2">{r.desc}</td></tr>
-            ))}
-            {rows.length === 0 && !loading && (<tr><td className="p-2" colSpan={3}>No events yet.</td></tr>)}
-          </tbody>
-        </table>
+    <section className="space-y-3">
+      <h2 className="font-semibold text-lg">Contract Activity</h2>
+      {loading && <div className="opacity-70 text-sm">Loading logs…</div>}
+      {err && <div className="text-sm text-red-600">{err}</div>}
+      {!loading && !err && rows.length === 0 && (
+        <div className="opacity-70 text-sm">No recent events.</div>
+      )}
+      <div className="grid gap-2">
+        {rows.map((r, i) => (
+          <div key={`${r.txHash}-${i}`} className="border rounded p-2 text-xs">
+            <div className="font-medium">{r.eventName}</div>
+            <div className="opacity-70 break-all">tx: {r.txHash}</div>
+            <pre className="mt-1 bg-gray-50 p-2 rounded overflow-auto">
+              {JSON.stringify(r.args, null, 2)}
+            </pre>
+          </div>
+        ))}
       </div>
     </section>
-  )
+  );
 }

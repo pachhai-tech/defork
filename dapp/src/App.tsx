@@ -24,7 +24,6 @@ export default function App() {
     return () => window.removeEventListener("start-tour", h);
     return () => window.removeEventListener("open-about", open);
   }, []);
-  const [showTour, setShowTour] = React.useState(false);
   const { address, isConnected } = useAccount();
   const { connectors, connect, status, error } = useConnect();
   const { disconnect } = useDisconnect();
