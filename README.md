@@ -14,11 +14,7 @@ forge build
 forge test -vv
 
 # Deploy
-export RPC_URL="https://sepolia.infura.io/v3/<key>"
-export PRIVATE_KEY=0x...                 # deployer
-export ROYALTY_RECEIVER=0xYourTreasury
-export DEFAULT_ROYALTY_BPS=500
-
+cp .env.example .env
 forge script script/Deploy.s.sol:Deploy --rpc-url $RPC_URL --broadcast -vvvv
 ```
 
@@ -29,12 +25,6 @@ Copy the printed `StoryForkNFT` address for the dApp.
 ```bash
 cd dapp
 cp .env.example .env
-# Fill:
-# VITE_CHAIN_ID=11155111 (Sepolia) or your target (Base Sepolia 84532 / Polygon Amoy 80002)
-# VITE_RPC_URL=...
-# VITE_CONTRACT_ADDRESS=0xFromDeploy
-# VITE_WEB3STORAGE_TOKEN=...
-# VITE_WALLETCONNECT_PROJECT_ID=...
 
 npm i
 npm run dev
@@ -65,16 +55,45 @@ Open the local URL, connect a wallet, generate text/images locally, mint, and vi
 
 ```bash
 cd contracts
-export RPC_URL="https://testnet.hashio.io/api"   # or mainnet/previewnet
-export PRIVATE_KEY=0x...                          # EOA with HBAR
-export ROYALTY_RECEIVER=0xYourTreasury
-export DEFAULT_ROYALTY_BPS=500
+cp .env.example .env
 
 forge build
-forge script script/Deploy.s.sol:Deploy --rpc-url $RPC_URL --broadcast -vvvv
+forge script script/Deploy.s.sol:Deploy --rpc-url testnet --broadcast -vvvv
 ```
 
 Copy the printed address into `dapp/.env` as `VITE_CONTRACT_ADDRESS`, set `VITE_CHAIN_ID` to `296` (testnet) or your target, and `VITE_RPC_URL` to the Hashio endpoint above.
+
+### Verify contracts
+
+Load environment variables
+
+```bash
+source .env
+```
+
+Verify StoryForkNFT contract:
+
+```bash
+forge verify-contract 0xAA31b224C46A9358d8536fc383dB6F2c6B58d8bC \
+ src/StoryForkNFT.sol:StoryForkNFT \
+ --chain-id 296 \
+ --verifier sourcify \
+ --verifier-url "https://server-verify.hashscan.io/" \
+ --constructor-args $(cast abi-encode "constructor(address,uint96)" $ROYALTY_RECEIVER $DEFAULT_ROYALTY_BPS)
+```
+
+Verify ForkRegistry contract:
+
+```bash
+NFT_ADDR=0xAA31b224C46A9358d8536fc383dB6F2c6B58d8bC
+
+forge verify-contract 0x950437A4F97F2832ACdad3795f4dF3011e9Ed378 \
+  src/ForkRegistry.sol:ForkRegistry \
+  --chain-id 296 \
+  --verifier sourcify \
+  --verifier-url https://server-verify.hashscan.io \
+  --constructor-args $(cast abi-encode "constructor(address)" $NFT_ADDR)
+```
 
 ### Explorer Links & Tx Tracking
 

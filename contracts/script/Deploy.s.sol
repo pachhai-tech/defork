@@ -15,13 +15,16 @@ contract Deploy is Script {
             vm.envOr("DEFAULT_ROYALTY_BPS", uint256(500))
         );
 
+        // Deploy.s.sol (snippet)
         vm.startBroadcast(key);
         StoryForkNFT nft = new StoryForkNFT(royaltyReceiver, defaultRoyaltyBps);
+        vm.stopBroadcast();
+        console2.log("StoryForkNFT:", address(nft));
+        console2.log("Default royalty (bps):", defaultRoyaltyBps);
+
+        vm.startBroadcast(key);
         ForkRegistry reg = new ForkRegistry(IStoryForkNFT(address(nft)));
         vm.stopBroadcast();
-
-        console2.log("StoryForkNFT:", address(nft));
         console2.log("ForkRegistry:", address(reg));
-        console2.log("Default royalty (bps):", defaultRoyaltyBps);
     }
 }
