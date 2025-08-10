@@ -1,0 +1,6 @@
+type Fork @entity {
+  id: ID!
+  parentTokenId: BigInt!
+  childTokenId: BigInt!
+  caller: Bytes!
+}

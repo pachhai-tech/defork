@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Creative Forking — Decentralized, AI‑Powered Story Worlds</title>
+  <link rel="stylesheet" href="./style.css" />
+  <script src="./env.js"></script>
+
+  <meta property="og:title" content="Creative Forking — Decentralized, AI-Powered Story Worlds" />
+  <meta property="og:description" content="Fork any story into a universe. Mint human or local-AI creations and prove provenance on-chain." />
+  <meta property="og:image" content="../brand/social-card.svg" />
+  <meta name="twitter:card" content="summary_large_image" />
+
+</head>
+<body>
+  <div id="statusRibbon" class="ribbon hidden"></div>
+  <header class="wrap header">
+    <div class="logo">Creative Forking</div>
+    <nav>
+      <a href="./brand.html">Brand</a>
+      <a href="#features">Features</a>
+      <a href="#how">How it works</a>
+      <a id="docsLink" href="#" target="_blank" rel="noreferrer">Docs</a>
+      <a id="appLink" class="btn" href="#" target="_blank" rel="noreferrer">Launch dApp</a>
+          <a href="./privacy.html">Privacy</a>
+      <a href="./terms.html">Terms</a>
+    </nav>
+  </header>
+
+  <section class="hero wrap">
+    <div class="hero-copy">
+      <h1>Fork any story into a universe</h1>
+      <p>Mint human or local‑AI creations, prove provenance on‑chain, and branch worlds across EVM chains. Built for fans, creators, and communities.</p>
+      <div class="cta">
+        <a id="ctaApp" class="btn primary" href="#" target="_blank" rel="noreferrer">Launch dApp</a>
+        <a id="ctaDocs" class="btn" href="#" target="_blank" rel="noreferrer">Read the docs</a>
+      </div>
+      <form id="waitlist" class="card">
+        <div class="form-title">Get notified about releases</div>
+        <div class="row">
+          <input id="email" type="email" placeholder="you@domain.com" required />
+          <button type="submit" class="btn">Notify me</button>
+        </div>
+        <div id="formMsg" class="msg"></div>
+      </form>
+    </div>
+    <div class="hero-art">
+      <div class="blob"></div>
+      <div class="card kpi">
+        <div class="k">100% client-side AI</div>
+        <div class="s">No centralized inference</div>
+      </div>
+      <div class="card kpi">
+        <div class="k">On‑chain provenance</div>
+        <div class="s">IPFS + content hash</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="features" class="wrap features">
+    <h2>Why Creative Forking?</h2>
+    <div class="grid">
+      <article class="card">
+        <h3>Local AI or pure human</h3>
+        <p>Generate text/images in your browser (WebGPU), or upload your own work. Your context stays local.</p>
+      </article>
+      <article class="card">
+        <h3>Fork everything</h3>
+        <p>Branch stories across chains. Keep lineage with the on‑chain <code>ForkRegistry</code>.</p>
+      </article>
+      <article class="card">
+        <h3>Verifiable provenance</h3>
+        <p>SHA‑256 content hash on‑chain + metadata on IPFS. Tx JSON written to IPFS for every mint.</p>
+      </article>
+      <article class="card">
+        <h3>Wallets you already use</h3>
+        <p>MetaMask, Coinbase, WalletConnect. Hedera EVM out of the box; Base/OP ready.</p>
+      </article>
+    </div>
+  </section>
+
+  <section id="how" class="wrap how">
+    <h2>How it works</h2>
+    <ol>
+      <li>Create with AI or by hand → upload to IPFS</li>
+      <li>Mint an NFT → set on‑chain content hash</li>
+      <li>Fork from any token (parentTokenId) → explore trees</li>
+      <li>Admins can hide/unhide, fix hashes; all via smart contracts</li>
+    </ol>
+  </section>
+
+  <footer class="wrap footer">
+    <div>© Creative Forking MVP</div>
+    <div class="small">Open‑source MVP • Foundry + React + wagmi • IPFS-first</div>
+  </footer>
+
+  <script src="./main.js"></script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+%%{init: {'theme':'neutral'}}%%
+sequenceDiagram
+  autonumber
+  participant U as User (Browser)
+  participant IPFS as IPFS/Web3.Storage
+  participant W as Wallet
+  participant N as StoryForkNFT
+  participant R as ForkRegistry
+
+  U->>IPFS: Upload fork metadata (parentTokenId in JSON)
+  IPFS-->>U: ipfs://CID2
+  U->>W: mint(tokenURI=ipfs://CID2)
+  W->>N: mint(...)
+  N-->>U: childTokenId
+  U->>W: registerFork(parentTokenId, childTokenId)
+  W->>R: registerFork(parent, child)
+  R-->>U: ForkRegistered event

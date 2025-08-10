@@ -1,0 +1,41 @@
+name: Landing (GitHub Pages)
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'landing/**'
+      - 'docs/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inject env
+        run: |
+          echo "window.__LANDING__ = { DAPP_URL: '${{ secrets.LANDING_DAPP_URL || '' }}', DOCS_URL: '${{ secrets.LANDING_DOCS_URL || '' }}', FORM_ENDPOINT: '${{ secrets.LANDING_FORM_ENDPOINT || '' }}', GITHUB_OWNER: '${{ github.repository_owner }}', GITHUB_REPO: '${{ github.event.repository.name }}', PLAUSIBLE_DOMAIN: '${{ secrets.PLAUSIBLE_DOMAIN || '' }}', PLAUSIBLE_SCRIPT: '${{ secrets.PLAUSIBLE_SCRIPT || '' }}' }" > landing/env.js
+      - name: Copy docs under landing
+        run: |
+          rm -rf landing/docs
+          mkdir -p landing/docs
+          cp -r docs/* landing/docs/ || true
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: landing
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

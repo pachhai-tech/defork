@@ -1,0 +1,19 @@
+name: dApp Build
+on:
+  push: { branches: [ main ] }
+  pull_request:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dapp
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: dapp/package.json
+      - run: npm ci
+      - run: VITE_APP_VERSION=${{ github.sha }} VITE_BUILD_COMMIT=${{ github.sha }} VITE_BUILD_TIME=$(date -u +'%Y-%m-%dT%H:%M:%SZ') npm run build:dapp

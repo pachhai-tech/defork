@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4f46e5"/>
+      <stop offset="1" stop-color="#06b6d4"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="#0f172a"/>
+  <rect x="72" y="96" width="180" height="180" rx="28" fill="url(#g)"/>
+  <g transform="translate(320,140)" fill="#e2e8f0">
+    <text font-family="Inter, ui-sans-serif, system-ui" font-size="64" font-weight="800" y="0">
+      <tspan x="0" dy="1.2em">Creative Forking</tspan>
+    </text>
+    <text font-family="Inter, ui-sans-serif, system-ui" font-size="28" fill="#94a3b8" y="120">
+      <tspan x="0" dy="2.2em">Decentralized, AI-Powered Story Worlds</tspan>
+    </text>
+  </g>
+</svg>

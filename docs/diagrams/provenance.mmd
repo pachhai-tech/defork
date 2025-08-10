@@ -1,0 +1,8 @@
+%%{init: {'theme':'neutral'}}%%
+stateDiagram-v2
+  [*] --> Draft
+  Draft --> Uploaded: IPFS put (content + metadata)
+  Uploaded --> Minted: mint()
+  Minted --> Provenanced: setContentHash()
+  Provenanced --> Forked: registerFork(parent, child)
+  Forked --> [*]

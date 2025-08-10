@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Creative Forking — Diagrams</title>
+  <style>
+    body{font-family:ui-sans-serif,system-ui;margin:0;padding:20px;line-height:1.5}
+    header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+    .grid{display:grid;grid-template-columns:1fr;gap:24px}
+    .card{border:1px solid #e2e8f0;border-radius:12px;padding:12px}
+    pre{background:#f8fafc;padding:8px;border-radius:8px;overflow:auto}
+    .hint{font-size:12px;color:#64748b}
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script>mermaid.initialize({ startOnLoad: true, theme: 'neutral' });</script>
+</head>
+<body>
+  <header>
+    <h1>Architecture Diagrams</h1>
+    <div class="hint">These render client-side using Mermaid.</div>
+  </header>
+  <div class="grid">
+    <section class="card">
+      <h3>System Context</h3>
+      <div class="mermaid">
+%%{init: {'theme':'neutral'}}%%
+flowchart LR
+  subgraph User["User's Browser"]
+    UI[React dApp UI]
+    AI[Local AI (WebGPU/wasm)]
+    WALLET[Wallet (MetaMask/Coinbase/WalletConnect)]
+    SW[Service Worker (cache models)]
+  end
+
+  IPFS[(IPFS Gateways)]
+  W3S[(Web3.Storage)]
+  PIN[(Pinata - optional)]
+  HEDERA[(Hedera EVM RPC)]
+  CONTRACTS[(StoryForkNFT + ForkRegistry)]
+  GH[GitHub Releases/Pages]
+  FLEEK[Fleek (static hosting)]
+
+  UI -- upload JSON/assets --> W3S
+  UI -- optional pinByHash --> PIN
+  W3S <-- fetch --> IPFS
+
+  UI -- mint & setContentHash --> HEDERA
+  HEDERA --> CONTRACTS
+
+  UI -- wallet connect --> WALLET
+  AI -. model shards .-> SW
+  SW -. cache .-> AI
+
+  UI -. static app .-> FLEEK
+  UI -. docs/landing .-> GH
+
+      </div>
+      <details><summary>Source</summary><pre>%%{init: {'theme':'neutral'}}%%
+flowchart LR
+  subgraph User["User's Browser"]
+    UI[React dApp UI]
+    AI[Local AI (WebGPU/wasm)]
+    WALLET[Wallet (MetaMask/Coinbase/WalletConnect)]
+    SW[Service Worker (cache models)]
+  end
+
+  IPFS[(IPFS Gateways)]
+  W3S[(Web3.Storage)]
+  PIN[(Pinata - optional)]
+  HEDERA[(Hedera EVM RPC)]
+  CONTRACTS[(StoryForkNFT + ForkRegistry)]
+  GH[GitHub Releases/Pages]
+  FLEEK[Fleek (static hosting)]
+
+  UI -- upload JSON/assets --&gt; W3S
+  UI -- optional pinByHash --&gt; PIN
+  W3S &lt;-- fetch --&gt; IPFS
+
+  UI -- mint &amp; setContentHash --&gt; HEDERA
+  HEDERA --&gt; CONTRACTS
+
+  UI -- wallet connect --&gt; WALLET
+  AI -. model shards .-&gt; SW
+  SW -. cache .-&gt; AI
+
+  UI -. static app .-&gt; FLEEK
+  UI -. docs/landing .-&gt; GH
+</pre></details>
+    </section>
+    <section class="card">
+      <h3>Mint Flow</h3>
+      <div class="mermaid">
+%%{init: {'theme':'neutral'}}%%
+sequenceDiagram
+  autonumber
+  participant U as User (Browser)
+  participant AI as Local AI
+  participant IPFS as IPFS/Web3.Storage
+  participant W as Wallet
+  participant C as StoryForkNFT
+
+  U->>AI: (optional) Generate content locally
+  U->>IPFS: Upload content + metadata (JSON)
+  IPFS-->>U: ipfs://CID
+  U->>W: Sign & send mint(tx: tokenURI=ipfs://CID)
+  W->>C: mint(to, tokenURI, ...)
+  C-->>U: tokenId
+  U->>W: setContentHash(tokenId, sha256(content))
+  W->>C: setContentHash(tokenId, hash)
+  C-->>U: ContentHashSet event
+
+      </div>
+      <details><summary>Source</summary><pre>%%{init: {'theme':'neutral'}}%%
+sequenceDiagram
+  autonumber
+  participant U as User (Browser)
+  participant AI as Local AI
+  participant IPFS as IPFS/Web3.Storage
+  participant W as Wallet
+  participant C as StoryForkNFT
+
+  U-&gt;&gt;AI: (optional) Generate content locally
+  U-&gt;&gt;IPFS: Upload content + metadata (JSON)
+  IPFS--&gt;&gt;U: ipfs://CID
+  U-&gt;&gt;W: Sign &amp; send mint(tx: tokenURI=ipfs://CID)
+  W-&gt;&gt;C: mint(to, tokenURI, ...)
+  C--&gt;&gt;U: tokenId
+  U-&gt;&gt;W: setContentHash(tokenId, sha256(content))
+  W-&gt;&gt;C: setContentHash(tokenId, hash)
+  C--&gt;&gt;U: ContentHashSet event
+</pre></details>
+    </section>
+    <section class="card">
+      <h3>Fork Flow</h3>
+      <div class="mermaid">
+%%{init: {'theme':'neutral'}}%%
+sequenceDiagram
+  autonumber
+  participant U as User (Browser)
+  participant IPFS as IPFS/Web3.Storage
+  participant W as Wallet
+  participant N as StoryForkNFT
+  participant R as ForkRegistry
+
+  U->>IPFS: Upload fork metadata (parentTokenId in JSON)
+  IPFS-->>U: ipfs://CID2
+  U->>W: mint(tokenURI=ipfs://CID2)
+  W->>N: mint(...)
+  N-->>U: childTokenId
+  U->>W: registerFork(parentTokenId, childTokenId)
+  W->>R: registerFork(parent, child)
+  R-->>U: ForkRegistered event
+
+      </div>
+      <details><summary>Source</summary><pre>%%{init: {'theme':'neutral'}}%%
+sequenceDiagram
+  autonumber
+  participant U as User (Browser)
+  participant IPFS as IPFS/Web3.Storage
+  participant W as Wallet
+  participant N as StoryForkNFT
+  participant R as ForkRegistry
+
+  U-&gt;&gt;IPFS: Upload fork metadata (parentTokenId in JSON)
+  IPFS--&gt;&gt;U: ipfs://CID2
+  U-&gt;&gt;W: mint(tokenURI=ipfs://CID2)
+  W-&gt;&gt;N: mint(...)
+  N--&gt;&gt;U: childTokenId
+  U-&gt;&gt;W: registerFork(parentTokenId, childTokenId)
+  W-&gt;&gt;R: registerFork(parent, child)
+  R--&gt;&gt;U: ForkRegistered event
+</pre></details>
+    </section>
+    <section class="card">
+      <h3>Provenance States</h3>
+      <div class="mermaid">
+%%{init: {'theme':'neutral'}}%%
+stateDiagram-v2
+  [*] --> Draft
+  Draft --> Uploaded: IPFS put (content + metadata)
+  Uploaded --> Minted: mint()
+  Minted --> Provenanced: setContentHash()
+  Provenanced --> Forked: registerFork(parent, child)
+  Forked --> [*]
+
+      </div>
+      <details><summary>Source</summary><pre>%%{init: {'theme':'neutral'}}%%
+stateDiagram-v2
+  [*] --&gt; Draft
+  Draft --&gt; Uploaded: IPFS put (content + metadata)
+  Uploaded --&gt; Minted: mint()
+  Minted --&gt; Provenanced: setContentHash()
+  Provenanced --&gt; Forked: registerFork(parent, child)
+  Forked --&gt; [*]
+</pre></details>
+    </section>
+  </div>
+</body>
+</html>

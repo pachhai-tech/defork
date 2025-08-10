@@ -1,0 +1,30 @@
+%%{init: {'theme':'neutral'}}%%
+flowchart LR
+  subgraph User["User's Browser"]
+    UI[React dApp UI]
+    AI[Local AI (WebGPU/wasm)]
+    WALLET[Wallet (MetaMask/Coinbase/WalletConnect)]
+    SW[Service Worker (cache models)]
+  end
+
+  IPFS[(IPFS Gateways)]
+  W3S[(Web3.Storage)]
+  PIN[(Pinata - optional)]
+  HEDERA[(Hedera EVM RPC)]
+  CONTRACTS[(StoryForkNFT + ForkRegistry)]
+  GH[GitHub Releases/Pages]
+  FLEEK[Fleek (static hosting)]
+
+  UI -- upload JSON/assets --> W3S
+  UI -- optional pinByHash --> PIN
+  W3S <-- fetch --> IPFS
+
+  UI -- mint & setContentHash --> HEDERA
+  HEDERA --> CONTRACTS
+
+  UI -- wallet connect --> WALLET
+  AI -. model shards .-> SW
+  SW -. cache .-> AI
+
+  UI -. static app .-> FLEEK
+  UI -. docs/landing .-> GH

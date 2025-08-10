@@ -1,0 +1,9 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.23;
+
+// Inside StoryForkNFT contract:
+// mapping(uint256 => bool) public moderationHidden;
+// function setModerationHidden(uint256 tokenId, bool hidden) public {
+//     require(msg.sender == owner() || /* add allowlist logic */, "Not authorized");
+//     moderationHidden[tokenId] = hidden;
+// }

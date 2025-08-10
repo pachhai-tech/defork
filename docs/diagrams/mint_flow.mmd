@@ -1,0 +1,18 @@
+%%{init: {'theme':'neutral'}}%%
+sequenceDiagram
+  autonumber
+  participant U as User (Browser)
+  participant AI as Local AI
+  participant IPFS as IPFS/Web3.Storage
+  participant W as Wallet
+  participant C as StoryForkNFT
+
+  U->>AI: (optional) Generate content locally
+  U->>IPFS: Upload content + metadata (JSON)
+  IPFS-->>U: ipfs://CID
+  U->>W: Sign & send mint(tx: tokenURI=ipfs://CID)
+  W->>C: mint(to, tokenURI, ...)
+  C-->>U: tokenId
+  U->>W: setContentHash(tokenId, sha256(content))
+  W->>C: setContentHash(tokenId, hash)
+  C-->>U: ContentHashSet event

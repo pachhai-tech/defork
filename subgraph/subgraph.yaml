@@ -1,0 +1,24 @@
+specVersion: 1.0.0
+schema:
+  file: ./schema.graphql
+dataSources:
+  - kind: ethereum
+    name: ForkRegistry
+    network: hedera-testnet
+    source:
+      address: '${FORK_REGISTRY_ADDRESS}'
+      abi: ForkRegistry
+      startBlock: 0
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - Fork
+      abis:
+        - name: ForkRegistry
+          file: ./abis/ForkRegistry.json
+      eventHandlers:
+        - event: ForkRegistered(indexed uint256,indexed uint256,indexed address)
+          handler: handleForkRegistered
+      file: ./src/mapping.ts

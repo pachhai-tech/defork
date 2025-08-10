@@ -1,0 +1,56 @@
+<!doctype html>
+<html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Getting Started – Creative Forking Docs</title><link rel="stylesheet" href="./style.css"/></head>
+<body>
+<header>
+  <div style="max-width:900px;margin:0 auto;display:flex;justify-content:space-between;align-items:center;">
+    <strong>Creative Forking — Docs</strong>
+    <nav>
+      <a href="./index.html">Home</a>
+      <a href="./getting-started.html">Getting Started</a>
+      <a href="./faq.html">FAQ</a>
+    </nav>
+  </div>
+</header>
+<main>
+  <h1>Getting Started</h1>
+  <section>
+    <h2>Pre-reqs</h2>
+    <ul>
+      <li>Wallet (MetaMask / Coinbase / WalletConnect)</li>
+      <li>RPC access to your target chain (Hedera testnet by default)</li>
+      <li>Web3.Storage token for IPFS</li>
+    </ul>
+  </section>
+  <section>
+    <h2>Deploy Contracts</h2>
+<pre><code>cd contracts
+export RPC_URL="https://testnet.hashio.io/api"
+export PRIVATE_KEY=0x...                    # deployer
+export ROYALTY_RECEIVER=0xYourTreasury
+export DEFAULT_ROYALTY_BPS=500
+forge build
+forge script script/Deploy.s.sol:Deploy --rpc-url $RPC_URL --broadcast -vvvv
+</code></pre>
+  </section>
+  <section>
+    <h2>Run the dApp</h2>
+<pre><code>cd dapp
+cp .env.example .env
+# Fill VITE_CHAIN_ID, VITE_RPC_URL, VITE_CONTRACT_ADDRESS, VITE_REGISTRY_ADDRESS, VITE_WEB3STORAGE_TOKEN, VITE_WALLETCONNECT_PROJECT_ID
+npm i
+npm run dev
+</code></pre>
+  </section>
+  <section>
+    <h2>Mint your first item</h2>
+    <ol>
+      <li>Connect your wallet.</li>
+      <li>Use AI or upload content via <strong>Create / Mint</strong>.</li>
+      <li>Click <strong>Mint NFT</strong>.</li>
+      <li>Find it in <strong>Gallery</strong> and explore forks in <strong>Fork Explorer</strong>.</li>
+    </ol>
+  </section>
+</main>
+<footer>© Creative Forking MVP</footer>
+</body></html>

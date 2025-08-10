@@ -1,0 +1,35 @@
+name: Release Fleek Deploy
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  fleek:
+    runs-on: ubuntu-latest
+    env:
+      TIME_NOW: ${{ github.event.repository.pushed_at }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Build dApp
+        working-directory: dapp
+        env:
+          VITE_APP_VERSION: ${{ github.ref_name }}
+          VITE_BUILD_COMMIT: ${{ github.sha }}
+          VITE_BUILD_TIME: ${{ github.event.release.published_at || github.event.head_commit.timestamp || env.TIME_NOW }}
+        run: |
+          npm ci
+          npm run build
+      - name: Deploy to Fleek
+        env:
+          FLEEK_SITE_ID: ${{ secrets.FLEEK_SITE_ID }}
+          FLEEK_API_KEY: ${{ secrets.FLEEK_API_KEY }}
+          FLEEK_API_SECRET: ${{ secrets.FLEEK_API_SECRET }}
+        run: |
+          npm i -g @fleekxyz/cli@latest
+          # The CLI expects auth via env and a directory to deploy
+          fleek sites deploy --site-id "$FLEEK_SITE_ID" --path dapp/dist --api-key "$FLEEK_API_KEY" --api-secret "$FLEEK_API_SECRET"

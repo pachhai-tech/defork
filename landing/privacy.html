@@ -1,0 +1,32 @@
+<!doctype html>
+<html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Privacy Policy — Creative Forking</title><link rel="stylesheet" href="./style.css"/></head>
+<body>
+<header class="wrap header">
+  <div class="logo">Creative Forking</div>
+  <nav>
+    <a href="./index.html">Home</a>
+    <a href="./privacy.html">Privacy</a>
+    <a href="./terms.html">Terms</a>
+  </nav>
+</header>
+<main class="wrap">
+  <h1>Privacy Policy</h1>
+  <p>Last updated: <span id="d"></span></p>
+  <section class="card">
+    <p><strong>Short version:</strong> We don’t use cookies or track you across sites. The MVP uses cookie-free analytics (optional). Content you create stays client-side until you choose to upload it to IPFS and mint on-chain.</p>
+    <ul>
+      <li><strong>Wallets:</strong> Connections happen directly in your wallet (MetaMask, Coinbase, or WalletConnect). We don’t store your keys.</li>
+      <li><strong>Content:</strong> Uploads go to IPFS via Web3.Storage; hashes and URIs may appear on-chain if you mint.</li>
+      <li><strong>Analytics (optional):</strong> If enabled, Plausible’s privacy-first analytics collect aggregate usage only—no cookies, no personal data.</li>
+      <li><strong>Moderation:</strong> If you “report” a token, a small JSON is written to IPFS for community review.</li>
+      <li><strong>Contact:</strong> Open an issue on GitHub for questions or takedown requests.</li>
+    </ul>
+  </section>
+</main>
+<footer class="wrap footer">
+  <div>© Creative Forking MVP</div>
+  <div class="small"><a href="./privacy.html">Privacy</a> · <a href="./terms.html">Terms</a></div>
+</footer>
+<script>document.getElementById('d').textContent=new Date().toISOString().slice(0,10)</script>
+</body></html>
