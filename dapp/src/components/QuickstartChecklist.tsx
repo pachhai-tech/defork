@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAccount } from "wagmi";
 import { readContract } from "@wagmi/core";
 import { config } from "../config/wallet";
@@ -8,13 +8,7 @@ import {
   REGISTRY_ADDRESS,
   VOTING_POOL_ADDRESS
 } from "../config/contract";
-import {
-  isAddress,
-  getAddress,
-  defineChain,
-  createPublicClient,
-  http
-} from "viem";
+import { isAddress, defineChain, createPublicClient, http } from "viem";
 
 type Check = { label: string; ok: boolean | null; detail?: string };
 
@@ -22,13 +16,13 @@ export function QuickstartChecklist() {
   const { address, isConnected } = useAccount();
   const [checks, setChecks] = useState<Check[]>([]);
   const [loading, setLoading] = useState(true);
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     (async () => {
       setLoading(true);
       const list: Check[] = [];
 
-      // 1) .env vars
       const env = {
         chainId: import.meta.env.VITE_CHAIN_ID,
         rpc: import.meta.env.VITE_RPC_URL,
@@ -87,14 +81,13 @@ export function QuickstartChecklist() {
         detail: env.wc ? "present" : "missing"
       });
 
-      // 2) Wallet connection
       list.push({
         label: "Wallet connected",
         ok: isConnected,
         detail: isConnected ? String(address) : "not connected"
       });
 
-      // 3) RPC reachability
+      // RPC reachable
       try {
         const chain = defineChain({
           id: Number(env.chainId || 0),
@@ -120,7 +113,7 @@ export function QuickstartChecklist() {
         });
       }
 
-      // 4) Contract callable: totalSupply()
+      // Contracts
       try {
         const ts = (await readContract(config, {
           address: CONTRACT_ADDRESS,
@@ -140,7 +133,6 @@ export function QuickstartChecklist() {
         });
       }
 
-      // 5) Registry contract check
       try {
         const parent = (await readContract(config, {
           address: REGISTRY_ADDRESS,
@@ -169,7 +161,6 @@ export function QuickstartChecklist() {
         });
       }
 
-      // 6) Voting pool contract check
       try {
         const stats = (await readContract(config, {
           address: VOTING_POOL_ADDRESS,
@@ -208,59 +199,73 @@ export function QuickstartChecklist() {
 
   const allGood = checks.every((c) => c.ok === true);
   const hasErrors = checks.some((c) => c.ok === false);
+  const okCount = useMemo(
+    () => checks.filter((c) => c.ok === true).length,
+    [checks]
+  );
 
   return (
-    <section className="space-y-3 border rounded p-4">
-      <div className="flex items-center gap-2">
-        <div className="font-semibold">Quickstart Checklist</div>
-        {loading ? (
-          <div className="text-xs opacity-70">Checking...</div>
-        ) : allGood ? (
-          <div className="text-xs text-green-600 font-medium">
-            ✅ All systems ready!
-          </div>
-        ) : hasErrors ? (
-          <div className="text-xs text-red-600 font-medium">
-            ⚠️ Issues detected
-          </div>
-        ) : (
-          <div className="text-xs text-yellow-600 font-medium">
-            ⏳ Partial setup
-          </div>
-        )}
+    <section className="border rounded p-4 bg-white">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <div className="font-semibold">Quickstart Checklist</div>
+          {loading ? (
+            <div className="text-xs opacity-70">Checking…</div>
+          ) : allGood ? (
+            <div className="text-xs text-green-600 font-medium">
+              ✅ All systems ready
+            </div>
+          ) : hasErrors ? (
+            <div className="text-xs text-yellow-700 font-medium">
+              ⚠ Issues detected
+            </div>
+          ) : (
+            <div className="text-xs text-gray-600 font-medium">
+              ⏳ Partial setup
+            </div>
+          )}
+          {!loading && (
+            <div className="text-xs text-gray-500">
+              ({okCount}/{checks.length})
+            </div>
+          )}
+        </div>
+        <button
+          className="text-xs underline"
+          onClick={() => setOpen((v) => !v)}
+        >
+          {open ? "Hide details" : "Show details"}
+        </button>
       </div>
 
-      <div className="grid gap-1 text-sm">
-        {checks.map((c, i) => (
-          <div key={i} className="flex items-center gap-2">
-            <span className="text-xs">
-              {c.ok === true ? "✅" : c.ok === false ? "❌" : "⏳"}
-            </span>
-            <span className="min-w-0 flex-1 font-medium">{c.label}</span>
-            <span className="text-xs opacity-70 break-all max-w-xs">
-              {c.detail}
-            </span>
+      {open && (
+        <>
+          <div className="mt-3 grid gap-1 text-sm">
+            {checks.map((c, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <span className="text-xs">
+                  {c.ok === true ? "✅" : c.ok === false ? "❌" : "⏳"}
+                </span>
+                <span className="min-w-0 flex-1 font-medium">{c.label}</span>
+                <span className="text-xs opacity-70 break-all max-w-xs">
+                  {c.detail}
+                </span>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
 
-      {hasErrors && (
-        <div className="text-xs opacity-70 pt-2 border-t">
-          <div className="font-medium mb-1">Fix issues:</div>
-          <div>• Update .env file with correct contract addresses</div>
-          <div>• Ensure you're on the right network (check VITE_CHAIN_ID)</div>
-          <div>• Deploy contracts if they don't exist</div>
-          <div>• Check RPC endpoint connectivity</div>
-        </div>
-      )}
-
-      {allGood && (
-        <div className="text-xs opacity-70 pt-2 border-t">
-          <div className="font-medium mb-1">🎉 Ready to go!</div>
-          <div>• Connect your wallet above</div>
-          <div>• Create your first NFT content</div>
-          <div>• Explore the fork tree and voting system</div>
-        </div>
+          {hasErrors && (
+            <div className="text-xs opacity-70 pt-2 border-t mt-3">
+              <div className="font-medium mb-1">Fix issues:</div>
+              <div>• Update .env with correct contract addresses</div>
+              <div>
+                • Ensure you’re on the right network (check VITE_CHAIN_ID)
+              </div>
+              <div>• Deploy contracts if they don’t exist</div>
+              <div>• Check RPC endpoint connectivity</div>
+            </div>
+          )}
+        </>
       )}
     </section>
   );

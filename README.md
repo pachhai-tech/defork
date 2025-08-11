@@ -90,7 +90,7 @@ forge verify-contract $VITE_REGISTRY_ADDRESS \
   --chain-id 296 \
   --verifier sourcify \
   --verifier-url "https://server-verify.hashscan.io/" \
-  --constructor-args $(cast abi-encode "constructor(address)" $VITE_REGISTRY_ADDRESS)
+  --constructor-args $(cast abi-encode "constructor(address)" $VITE_NFT_ADDRESS)
 ```
 
 Verify RoyaltyManager contract:
