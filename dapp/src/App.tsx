@@ -1,3 +1,4 @@
+import React from "react";
 import { useAccount, useConnect, useDisconnect, useSwitchChain } from "wagmi";
 import { Create } from "./components/Create";
 import { Gallery } from "./components/Gallery";
@@ -11,19 +12,28 @@ import { AuditLog } from "./components/AuditLog";
 import { ToastShelf } from "./lib/toast";
 import { CHAINS } from "./config/wallet";
 import { ConnectStorageButton } from "./components/ConnectStorageButton";
+// If you actually have an About component, keep this import. If not, remove the JSX that uses <About/>.
+// import { About } from "./components/About"
 
 export default function App() {
   const [showAbout, setShowAbout] = React.useState(false);
   const [showTour, setShowTour] = React.useState(false);
+
   React.useEffect(() => {
-    const open = () => setShowAbout(true);
-    window.addEventListener("open-about", open);
+    const handleOpenAbout = () => setShowAbout(true);
+    const handleStartTour = () => setShowTour(true);
+
+    window.addEventListener("open-about", handleOpenAbout);
+    window.addEventListener("start-tour", handleStartTour);
+
     if (!localStorage.getItem("tourSeen")) setShowTour(true);
-    const h = () => setShowTour(true);
-    window.addEventListener("start-tour", h);
-    return () => window.removeEventListener("start-tour", h);
-    return () => window.removeEventListener("open-about", open);
+
+    return () => {
+      window.removeEventListener("open-about", handleOpenAbout);
+      window.removeEventListener("start-tour", handleStartTour);
+    };
   }, []);
+
   const { address, isConnected } = useAccount();
   const { connectors, connect, status, error } = useConnect();
   const { disconnect } = useDisconnect();
@@ -51,6 +61,7 @@ export default function App() {
               </option>
             ))}
           </select>
+
           {isConnected ? (
             <div className="flex items-center gap-3">
               <span className="text-xs opacity-80">{address}</span>
@@ -80,6 +91,7 @@ export default function App() {
             </div>
           )}
         </div>
+
         <div className="flex items-center gap-3">
           <a
             className="text-sm underline"
@@ -92,30 +104,67 @@ export default function App() {
           <button id="about-build-btn" className="text-sm underline">
             About
           </button>
-          <button id="start-tour-btn" className="text-sm underline">
+          <button
+            id="start-tour-btn"
+            className="text-sm underline"
+            onClick={() => setShowTour(true)} // also allow direct click
+          >
             Start Tour
           </button>
           <ConnectStorageButton />
           <button id="reset-cache-btn" className="text-sm underline">
             Reset cache
           </button>
-          <button id="about-btn" className="text-sm underline">
+          <button
+            id="about-btn"
+            className="text-sm underline"
+            onClick={() => setShowAbout(true)} // wire the About toggle
+          >
             About
           </button>
         </div>
       </header>
 
+      {/* About overlay (build/env info) */}
       <div
         id="about-modal"
-        style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.6);z-index:1000;align-items:center;justify-content:center;"
+        style={{
+          display: "none",
+          position: "fixed",
+          top: 0,
+          left: 0,
+          width: "100%",
+          height: "100%",
+          background: "rgba(0,0,0,.6)",
+          zIndex: 1000,
+          alignItems: "center",
+          justifyContent: "center"
+        }}
       >
-        <div style="background:#fff;color:#000;padding:1.5rem;max-width:500px;width:90%;border-radius:8px;">
+        <div
+          style={{
+            background: "#fff",
+            color: "#000",
+            padding: "1.5rem",
+            maxWidth: "500px",
+            width: "90%",
+            borderRadius: "8px"
+          }}
+        >
           <h2>About this build</h2>
           <pre
             id="about-content"
-            style="white-space:pre-wrap;font-size:0.85rem;background:#f1f5f9;padding:0.5rem;border-radius:4px;max-height:300px;overflow:auto;"
-          ></pre>
-          <div style="text-align:right;margin-top:1rem;">
+            style={{
+              whiteSpace: "pre-wrap",
+              fontSize: "0.85rem",
+              background: "#f1f5f9",
+              padding: "0.5rem",
+              borderRadius: "4px",
+              maxHeight: "300px",
+              overflow: "auto"
+            }}
+          />
+          <div style={{ textAlign: "right", marginTop: "1rem" }}>
             <button id="about-close" className="underline">
               Close
             </button>
@@ -123,59 +172,47 @@ export default function App() {
         </div>
       </div>
 
+      {/* Reset cache handler */}
       <script
         dangerouslySetInnerHTML={{
           __html: `
-        (function(){
-          async function resetAll(){
-            try {
-              // Local storage
-              try { localStorage.clear() } catch {}
-              try { sessionStorage.clear() } catch {}
-
-              // Service workers & caches
-              if ('serviceWorker' in navigator) {
-                try {
-                  const regs = await navigator.serviceWorker.getRegistrations()
-                  for (const r of regs) { try { await r.unregister() } catch {} }
-                } catch {}
-              }
-              if (window.caches && caches.keys) {
-                try {
-                  const keys = await caches.keys()
-                  await Promise.all(keys.map(k => caches.delete(k)))
-                } catch {}
-              }
-
-              // IndexedDB (best-effort; delete known DBs)
+          (function(){
+            async function resetAll(){
               try {
-                const dbs = (indexedDB as any).databases ? await (indexedDB as any).databases() : []
-                const names = (dbs || []).map((d:any)=>d.name).filter(Boolean)
-                const known = new Set([
-                  'transformers-cache',  // transformers.js
-                  'webgpu-cache', 'webnn-cache',
-                  'mlc-cache', 'web-stable-diffusion'
-                ])
-                for (const n of names) {
-                  try { indexedDB.deleteDatabase(n) } catch {}
+                try { localStorage.clear() } catch {}
+                try { sessionStorage.clear() } catch {}
+                if ('serviceWorker' in navigator) {
+                  try {
+                    const regs = await navigator.serviceWorker.getRegistrations()
+                    for (const r of regs) { try { await r.unregister() } catch {} }
+                  } catch {}
                 }
-                // Also try known names in case databases() is not available
-                known.forEach(n => { try { indexedDB.deleteDatabase(n) } catch {} })
-              } catch {}
-
-              alert('Local app cache cleared. The page will reload.')
-              window.location.reload()
-            } catch (e) { alert('Reset failed: ' + (e && e.message ? e.message : 'unknown error')) }
-          }
-          document.addEventListener('click', function(e){
-            const t = e.target as HTMLElement
-            if (t && t.id === 'reset-cache-btn'){
-              e.preventDefault()
-              if (confirm('Clear local cache (wallet state unaffected) and reload?')) resetAll()
+                if (window.caches && caches.keys) {
+                  try {
+                    const keys = await caches.keys()
+                    await Promise.all(keys.map(k => caches.delete(k)))
+                  } catch {}
+                }
+                try {
+                  const dbs = (indexedDB).databases ? await (indexedDB).databases() : []
+                  const names = (dbs || []).map((d)=>d.name).filter(Boolean)
+                  const known = new Set(['transformers-cache','webgpu-cache','webnn-cache','mlc-cache','web-stable-diffusion'])
+                  for (const n of names) { try { indexedDB.deleteDatabase(n) } catch {} }
+                  known.forEach(n => { try { indexedDB.deleteDatabase(n) } catch {} })
+                } catch {}
+                alert('Local app cache cleared. The page will reload.')
+                window.location.reload()
+              } catch (e) { alert('Reset failed: ' + (e && e.message ? e.message : 'unknown error')) }
             }
-          }, true)
-        })();
-      `
+            document.addEventListener('click', function(e){
+              const t = e.target
+              if (t && t.id === 'reset-cache-btn'){
+                e.preventDefault()
+                if (confirm('Clear local cache (wallet state unaffected) and reload?')) resetAll()
+              }
+            }, true)
+          })();
+        `
         }}
       />
       <ToastShelf />
@@ -199,37 +236,44 @@ export default function App() {
           <AuditLog />
         </div>
 
+        {/* About build modal wiring */}
         <script
           dangerouslySetInnerHTML={{
             __html: `
-        (function(){
-          async function openAbout(){
-            const env = {}
-            try {
-              const all = import.meta.env
-              for (const k in all){
-                if (k.startsWith('VITE_')) env[k] = all[k]
-              }
-            } catch {}
-            let ver = {}
-            try {
-              const r = await fetch('/version.json')
-              if (r.ok) ver = await r.json()
-            } catch {}
-            const out = {env, version: ver}
-            document.getElementById('about-content').textContent = JSON.stringify(out,null,2)
-            document.getElementById('about-modal').style.display='flex'
-          }
-          document.getElementById('about-build-btn').addEventListener('click', openAbout)
-          document.getElementById('about-close').addEventListener('click', ()=>{
-            document.getElementById('about-modal').style.display='none'
-          })
-        })();
-      `
+          (function(){
+            async function openAbout(){
+              const env = {}
+              try {
+                const all = import.meta.env
+                for (const k in all){ if (k.startsWith('VITE_')) env[k] = all[k] }
+              } catch {}
+              let ver = {}
+              try {
+                const r = await fetch('/version.json')
+                if (r.ok) ver = await r.json()
+              } catch {}
+              const out = {env, version: ver}
+              const el = document.getElementById('about-content')
+              if (el) el.textContent = JSON.stringify(out,null,2)
+              const modal = document.getElementById('about-modal')
+              if (modal) modal.style.display='flex'
+            }
+            const openBtn = document.getElementById('about-build-btn')
+            if (openBtn) openBtn.addEventListener('click', openAbout)
+            const closeBtn = document.getElementById('about-close')
+            if (closeBtn) closeBtn.addEventListener('click', ()=>{
+              const modal = document.getElementById('about-modal')
+              if (modal) modal.style.display='none'
+            })
+          })();
+        `
           }}
         />
       </main>
-      {showAbout && <About onClose={() => setShowAbout(false)} />}
+
+      {/* If you actually have an <About/> component, keep this; else remove it. */}
+      {/* {showAbout && <About onClose={() => setShowAbout(false)} />} */}
+
       {showTour && (
         <Tour
           onClose={() => {

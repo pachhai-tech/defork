@@ -7,7 +7,7 @@ import { decodeEventLog, isAddress, zeroAddress, type Log } from "viem";
 import { uploadJSON, uploadBlob } from "../lib/ipfs";
 import { isImageSafe } from "../lib/nsfw";
 import { nowUnix, sha256Blob, sha256Text } from "../lib/utils";
-import { useToast } from "../context/ToastContext";
+import { useToast } from '../lib/toast'
 
 import { useState, useRef, DragEvent, useEffect } from "react";
 import { AIText } from "./AIText";
