@@ -15,6 +15,21 @@ import {
   SUPPORTED_TOKENS
 } from "../config/contract";
 
+import {
+  Alert,
+  Box,
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  Divider,
+  MenuItem,
+  Select,
+  Stack,
+  TextField,
+  Typography
+} from "@mui/material";
+
 interface VotingInterfaceProps {
   tokenId: number;
   onVoteSuccess?: () => void;
@@ -34,7 +49,6 @@ export function VotingInterface({
 
   const selectedToken = SUPPORTED_TOKENS[selectedTokenIndex];
 
-  // Read current vote stats
   const { data: voteStats, refetch: refetchStats } = useReadContract({
     address: VOTING_POOL_ADDRESS,
     abi: VOTING_POOL_ABI,
@@ -42,7 +56,6 @@ export function VotingInterface({
     args: [BigInt(tokenId)]
   });
 
-  // Read user's NFT tier
   const { data: userTier } = useReadContract({
     address: VOTING_POOL_ADDRESS,
     abi: VOTING_POOL_ABI,
@@ -51,13 +64,11 @@ export function VotingInterface({
     query: { enabled: !!address }
   });
 
-  // Get user's token balance
   const { data: balance, refetch: refetchBalance } = useBalance({
     address,
     token: selectedToken.address
   });
 
-  // Check current allowance
   const { data: currentAllowance, refetch: refetchAllowance } = useReadContract(
     {
       address: selectedToken.address,
@@ -68,24 +79,20 @@ export function VotingInterface({
     }
   );
 
-  // Write functions
   const { writeContract: approve, isPending: isApprovalPending } =
     useWriteContract();
   const { writeContract: vote, isPending: isVotePending } = useWriteContract();
 
-  // Wait for approval transaction
   const { isLoading: isApprovalTxPending } = useWaitForTransactionReceipt({
     hash: approvalHash as `0x${string}`,
     query: { enabled: !!approvalHash }
   });
 
-  // Wait for vote transaction
   const { isLoading: isVoteTxPending } = useWaitForTransactionReceipt({
     hash: voteHash as `0x${string}`,
     query: { enabled: !!voteHash }
   });
 
-  // Handle approval success
   useEffect(() => {
     if (approvalHash && !isApprovalTxPending) {
       refetchAllowance();
@@ -93,7 +100,6 @@ export function VotingInterface({
     }
   }, [approvalHash, isApprovalTxPending, refetchAllowance]);
 
-  // Handle vote success
   useEffect(() => {
     if (voteHash && !isVoteTxPending) {
       refetchStats();
@@ -137,12 +143,8 @@ export function VotingInterface({
     try {
       setIsVoting(true);
 
-      // Check if we need approval first
       if (needsApproval) {
-        push({
-          kind: "info",
-          message: "Approving token spending..."
-        });
+        push({ kind: "info", message: "Approving token spending..." });
 
         const result = await new Promise<`0x${string}`>((resolve, reject) => {
           approve(
@@ -162,7 +164,6 @@ export function VotingInterface({
         return;
       }
 
-      // Cast the vote
       const result = await new Promise<`0x${string}`>((resolve, reject) => {
         vote(
           {
@@ -210,132 +211,157 @@ export function VotingInterface({
   };
 
   return (
-    <section className="space-y-4 border rounded p-4">
-      <div className="flex items-center justify-between">
-        <h3 className="font-semibold text-lg">💎 Vote for this Content</h3>
-        <div className="text-sm opacity-70">
-          {getTierName(Number(userTier) || 0)} Tier (×{userMultiplier} power)
-        </div>
-      </div>
-
-      {/* Current Stats */}
-      <div className="grid grid-cols-2 gap-4 p-3 bg-gray-50 rounded">
-        <div className="text-center">
-          <div className="text-2xl font-bold">
-            {voteStats ? String(voteStats[0]) : "0"}
-          </div>
-          <div className="text-sm opacity-70">Total Votes</div>
-        </div>
-        <div className="text-center">
-          <div className="text-2xl font-bold">
-            ${voteStats ? formatBalance(voteStats[1], 18) : "0"}
-          </div>
-          <div className="text-sm opacity-70">Total Value</div>
-        </div>
-      </div>
-
-      {/* Token Selection */}
-      <div className="space-y-2">
-        <label className="text-sm font-medium">Voting Token</label>
-        <select
-          className="border rounded p-2 w-full"
-          value={selectedTokenIndex}
-          onChange={(e) => setSelectedTokenIndex(Number(e.target.value))}
-        >
-          {SUPPORTED_TOKENS.map((token, index) => (
-            <option key={token.address} value={index}>
-              {token.symbol} - {token.name}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {/* Amount Input */}
-      <div className="space-y-2">
-        <label className="text-sm font-medium">Amount to Vote</label>
-        <div className="flex gap-2">
-          <input
-            type="number"
-            className="border rounded p-2 flex-1"
-            placeholder={`0.00 ${selectedToken.symbol}`}
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            step="0.01"
-            min="0"
-          />
-          <button
-            className="px-3 py-1 border rounded text-sm"
-            onClick={() => {
-              if (balance) {
-                const maxAmount = formatBalance(
-                  balance.value,
-                  selectedToken.decimals
-                );
-                setAmount(maxAmount);
-              }
-            }}
-            disabled={!balance}
+    <Card variant="outlined">
+      <CardHeader
+        title={
+          <Stack
+            direction="row"
+            alignItems="center"
+            justifyContent="space-between"
           >
-            Max
-          </button>
-        </div>
-
-        <div className="text-sm opacity-70">
-          Balance:{" "}
-          {balance ? formatBalance(balance.value, selectedToken.decimals) : "0"}{" "}
-          {selectedToken.symbol}
-        </div>
-      </div>
-
-      {/* Voting Power Preview */}
-      {amount && (
-        <div className="p-3 bg-blue-50 rounded border border-blue-200">
-          <div className="text-sm font-medium text-blue-900 mb-1">
-            Voting Power Calculation
-          </div>
-          <div className="text-sm text-blue-700">
-            {amount} {selectedToken.symbol} × {userMultiplier} (tier multiplier)
-            = <strong>{votingPower.toFixed(2)} votes</strong>
-          </div>
-        </div>
-      )}
-
-      {/* Action Button */}
-      <button
-        onClick={handleVote}
-        disabled={
-          !amount ||
-          !address ||
-          isVoting ||
-          isApprovalPending ||
-          isVotePending ||
-          isApprovalTxPending ||
-          isVoteTxPending ||
-          (balance && amountBigInt > balance.value)
+            <Typography fontWeight={800}>💎 Vote for this Content</Typography>
+            <Typography variant="body2" color="text.secondary">
+              {getTierName(Number(userTier) || 0)} Tier (×{userMultiplier}{" "}
+              power)
+            </Typography>
+          </Stack>
         }
-        className="w-full px-4 py-2 border rounded font-medium disabled:opacity-50"
-      >
-        {isApprovalTxPending
-          ? "Approving..."
-          : isVoteTxPending
-          ? "Voting..."
-          : needsApproval
-          ? `Approve ${selectedToken.symbol}`
-          : `Cast Vote (${votingPower.toFixed(2)} voting power)`}
-      </button>
+      />
+      <CardContent>
+        {/* Current Stats */}
+        <Stack
+          direction="row"
+          spacing={2}
+          sx={{ p: 2, bgcolor: "grey.50", borderRadius: 1, mb: 2 }}
+        >
+          <Box sx={{ textAlign: "center", flex: 1 }}>
+            <Typography variant="h5" fontWeight={800}>
+              {voteStats ? String(voteStats[0]) : "0"}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Total Votes
+            </Typography>
+          </Box>
+          <Box sx={{ textAlign: "center", flex: 1 }}>
+            <Typography variant="h5" fontWeight={800}>
+              ${voteStats ? formatBalance(voteStats[1], 18) : "0"}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Total Value
+            </Typography>
+          </Box>
+        </Stack>
 
-      {/* Royalty Distribution Info */}
-      <div className="text-xs opacity-70 border-t pt-3 space-y-1">
-        <div className="font-medium mb-2">
-          🎯 Your vote contributes to royalty distribution:
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          <div>• 5% Genesis Creator</div>
-          <div>• Custom Contributor share</div>
-          <div>• Equal lineage split</div>
-          <div>• 2% Platform development</div>
-        </div>
-      </div>
-    </section>
+        {/* Token Selection */}
+        <Stack spacing={1} sx={{ mb: 2 }}>
+          <Typography variant="body2" fontWeight={600}>
+            Voting Token
+          </Typography>
+          <Select
+            size="small"
+            value={selectedTokenIndex}
+            onChange={(e) => setSelectedTokenIndex(Number(e.target.value))}
+          >
+            {SUPPORTED_TOKENS.map((token, index) => (
+              <MenuItem key={token.address} value={index}>
+                {token.symbol} — {token.name}
+              </MenuItem>
+            ))}
+          </Select>
+        </Stack>
+
+        {/* Amount Input */}
+        <Stack spacing={1} sx={{ mb: 2 }}>
+          <Typography variant="body2" fontWeight={600}>
+            Amount to Vote
+          </Typography>
+          <Stack direction="row" spacing={1}>
+            <TextField
+              type="number"
+              inputProps={{ step: "0.01", min: "0" }}
+              placeholder={`0.00 ${selectedToken.symbol}`}
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              fullWidth
+            />
+            <Button
+              variant="outlined"
+              onClick={() => {
+                if (balance) {
+                  const maxAmount = formatBalance(
+                    balance.value,
+                    selectedToken.decimals
+                  );
+                  setAmount(maxAmount);
+                }
+              }}
+              disabled={!balance}
+            >
+              Max
+            </Button>
+          </Stack>
+
+          <Typography variant="caption" color="text.secondary">
+            Balance:{" "}
+            {balance
+              ? formatBalance(balance.value, selectedToken.decimals)
+              : "0"}{" "}
+            {selectedToken.symbol}
+          </Typography>
+        </Stack>
+
+        {/* Voting Power Preview */}
+        {amount && (
+          <Alert severity="info" variant="outlined" sx={{ mb: 2 }}>
+            <Typography variant="body2" fontWeight={700}>
+              Voting Power Calculation
+            </Typography>
+            <Typography variant="body2">
+              {amount} {selectedToken.symbol} × {userMultiplier} (tier
+              multiplier) = <strong>{votingPower.toFixed(2)} votes</strong>
+            </Typography>
+          </Alert>
+        )}
+
+        {/* Action Button */}
+        <Button
+          variant="contained"
+          fullWidth
+          onClick={handleVote}
+          disabled={
+            !amount ||
+            !address ||
+            isVoting ||
+            isApprovalPending ||
+            isVotePending ||
+            isApprovalTxPending ||
+            isVoteTxPending ||
+            (balance && amountBigInt > balance.value)
+          }
+          sx={{ mb: 2 }}
+        >
+          {isApprovalTxPending
+            ? "Approving..."
+            : isVoteTxPending
+            ? "Voting..."
+            : needsApproval
+            ? `Approve ${selectedToken.symbol}`
+            : `Cast Vote (${votingPower.toFixed(2)} voting power)`}
+        </Button>
+
+        <Divider sx={{ my: 1.5 }} />
+
+        {/* Royalty Distribution Info */}
+        <Stack spacing={0.5}>
+          <Typography variant="subtitle2">
+            🎯 Your vote contributes to royalty distribution:
+          </Typography>
+          <Typography variant="caption">• 5% Genesis Creator</Typography>
+          <Typography variant="caption">• Custom Contributor share</Typography>
+          <Typography variant="caption">• Equal lineage split</Typography>
+          <Typography variant="caption">• 2% Platform development</Typography>
+        </Stack>
+      </CardContent>
+    </Card>
   );
 }

@@ -6,15 +6,27 @@ import { readContract } from "@wagmi/core";
 import { config } from "../config/wallet";
 import { useToast } from "../lib/toast";
 
+import {
+  Card,
+  CardHeader,
+  CardContent,
+  Typography,
+  Stack,
+  TextField,
+  Select,
+  MenuItem,
+  Button,
+  Alert
+} from "@mui/material";
+
 type Meta = any;
 
 function uniqNums(s: string): number[] {
-  const set = new Set<number>();
-  s.split(/[\s,]+/).forEach((x) => {
-    const n = Number(x);
-    if (!Number.isNaN(n) && n > 0) set.add(n);
-  });
-  return Array.from(set).sort((a, b) => a - b);
+  const ids = (s || "")
+    .split(/[\s,]+/)
+    .map((t) => Number(t.trim()))
+    .filter((n) => Number.isFinite(n) && n > 0);
+  return Array.from(new Set(ids));
 }
 
 export function AdminPanel() {
@@ -34,15 +46,6 @@ export function AdminPanel() {
   const [contentIdsText, setContentIdsText] = useState("");
   const { writeContract } = useWriteContract();
 
-  if (!isAdmin) {
-    return (
-      <div className="border rounded p-4 bg-yellow-50 text-sm">
-        <div className="font-semibold mb-1">Admin Panel</div>
-        <div>Connect with an admin wallet to access controls.</div>
-      </div>
-    );
-  }
-
   async function toggleHidden() {
     const ids = uniqNums(idsText);
     if (ids.length === 0)
@@ -50,7 +53,6 @@ export function AdminPanel() {
     setLoading(true);
     try {
       for (const id of ids) {
-        // fetch metadata
         const uri = (await readContract(config, {
           address: CONTRACT_ADDRESS,
           abi: ABI,
@@ -60,12 +62,10 @@ export function AdminPanel() {
         const res = await fetchIPFS(uri);
         const meta: Meta = await res.json();
 
-        // flip hidden
         const m = meta || {};
         m.moderation = m.moderation || { hidden: false, reports: 0, flags: 0 };
         m.moderation.hidden = action === "hide";
 
-        // record admin signature (optional provenance)
         try {
           const msg = `moderation:${action}:#${id}:ts:${Math.floor(
             Date.now() / 1000
@@ -77,7 +77,6 @@ export function AdminPanel() {
           m.moderation.adminSig = sig;
         } catch {}
 
-        // upload new metadata and set tokenURI
         const newUri = await putJSON(m, `meta_${id}.json`);
         await new Promise<void>((resolve, reject) => {
           writeContract(
@@ -148,12 +147,10 @@ export function AdminPanel() {
         }
 
         const buf = new Uint8Array(await blob.arrayBuffer());
-        // Web Crypto sha-256
         const digest = await crypto.subtle.digest("SHA-256", buf);
         const hex = Array.from(new Uint8Array(digest))
           .map((b) => b.toString(16).padStart(2, "0"))
           .join("");
-
         const contentHash = ("0x" + hex) as `0x${string}`;
 
         await new Promise<void>((resolve, reject) => {
@@ -182,63 +179,88 @@ export function AdminPanel() {
     }
   }
 
+  if (!isAdmin) {
+    return (
+      <Alert severity="warning" variant="outlined">
+        <Typography fontWeight={700} component="div">
+          Admin Panel
+        </Typography>
+        Connect with an admin wallet to access controls.
+      </Alert>
+    );
+  }
+
   return (
-    <section className="space-y-4 border rounded p-4">
-      <div className="font-semibold">Admin Panel</div>
+    <Card variant="outlined">
+      <CardHeader
+        title={<Typography fontWeight={800}>Admin Panel</Typography>}
+      />
+      <CardContent>
+        <Stack spacing={3}>
+          <Stack spacing={1}>
+            <Typography fontWeight={700}>Moderation: hide/unhide</Typography>
+            <Stack
+              direction={{ xs: "column", sm: "row" }}
+              spacing={2}
+              alignItems="flex-start"
+            >
+              <Select
+                value={action}
+                onChange={(e) => setAction(e.target.value as any)}
+                size="small"
+                sx={{ width: 160 }}
+              >
+                <MenuItem value="hide">Hide</MenuItem>
+                <MenuItem value="unhide">Unhide</MenuItem>
+              </Select>
+              <TextField
+                label="Token IDs (comma/space separated)"
+                multiline
+                minRows={2}
+                value={idsText}
+                onChange={(e) => setIdsText(e.target.value)}
+                fullWidth
+              />
+              <Button
+                variant="contained"
+                onClick={toggleHidden}
+                disabled={loading}
+              >
+                {loading ? "Working…" : "Apply"}
+              </Button>
+            </Stack>
+            <Typography variant="caption" color="text.secondary">
+              Writes a new metadata JSON with moderation.hidden and updates
+              tokenURI. Adds an optional admin signature (EIP‑191) inside
+              metadata.
+            </Typography>
+          </Stack>
 
-      <div className="space-y-2">
-        <div className="font-medium">Moderation: hide/unhide</div>
-        <div className="flex gap-2 items-center">
-          <select
-            className="border rounded p-1"
-            value={action}
-            onChange={(e) => setAction(e.target.value as any)}
+          <Stack
+            spacing={1}
+            sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2 }}
           >
-            <option value="hide">Hide</option>
-            <option value="unhide">Unhide</option>
-          </select>
-          <textarea
-            className="border rounded p-2 w-full"
-            rows={2}
-            placeholder="Token IDs (comma/space separated)"
-            value={idsText}
-            onChange={(e) => setIdsText(e.target.value)}
-          />
-          <button
-            className="px-3 py-1 border rounded"
-            disabled={loading}
-            onClick={toggleHidden}
-          >
-            {loading ? "Working…" : "Apply"}
-          </button>
-        </div>
-        <div className="text-xs opacity-70">
-          Writes a new metadata JSON with `moderation.hidden` and updates
-          tokenUri. Adds an optional admin signature (EIP-191) inside metadata.
-        </div>
-      </div>
-
-      <div className="space-y-2 pt-2 border-t">
-        <div className="font-medium">Retry setContentHash (batch)</div>
-        <textarea
-          className="border rounded p-2 w-full"
-          rows={2}
-          placeholder="Token IDs (comma/space separated)"
-          value={contentIdsText}
-          onChange={(e) => setContentIdsText(e.target.value)}
-        />
-        <button
-          className="px-3 py-1 border rounded"
-          disabled={loading}
-          onClick={retryHashes}
-        >
-          {loading ? "Working…" : "Update hashes"}
-        </button>
-        <div className="text-xs opacity-70">
-          Recomputes SHA-256 from `image`, `contentURI`, or `description` (text)
-          and calls on-chain `setContentHash`.
-        </div>
-      </div>
-    </section>
+            <Typography fontWeight={700}>
+              Retry setContentHash (batch)
+            </Typography>
+            <TextField
+              label="Token IDs (comma/space separated)"
+              multiline
+              minRows={2}
+              value={contentIdsText}
+              onChange={(e) => setContentIdsText(e.target.value)}
+              fullWidth
+            />
+            <Button variant="outlined" onClick={retryHashes} disabled={loading}>
+              {loading ? "Working…" : "Update hashes"}
+            </Button>
+            <Typography variant="caption" color="text.secondary">
+              Recomputes SHA‑256 from image/contentURI/description (text) and
+              calls on‑chain setContentHash.
+            </Typography>
+          </Stack>
+        </Stack>
+      </CardContent>
+    </Card>
   );
 }

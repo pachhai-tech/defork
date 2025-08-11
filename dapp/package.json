@@ -14,11 +14,16 @@
     "ipfs:deploy": "node scripts/ipfs-deploy.mjs"
   },
   "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@mui/icons-material": "^7.3.1",
+    "@mui/material": "^7.3.1",
+    "@storacha/client": "^1.4.0",
     "@tanstack/react-query": "^5.51.1",
     "@tensorflow/tfjs": "^4.22.0",
     "@wagmi/core": "^2.12.17",
     "@xenova/transformers": "^2.17.2",
-    "@storacha/client": "^1.4.0",
+    "connectkit": "^1.9.1",
     "nsfwjs": "^4.2.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

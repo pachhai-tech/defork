@@ -1,4 +1,24 @@
 import React from "react";
+import {
+  AppBar,
+  Toolbar,
+  Typography,
+  Container,
+  Paper,
+  Stack,
+  Button,
+  IconButton,
+  Menu,
+  MenuItem,
+  Box,
+  Dialog,
+  DialogTitle,
+  DialogContent
+} from "@mui/material";
+import MoreVertIcon from "@mui/icons-material/MoreVert";
+import CloseIcon from "@mui/icons-material/Close";
+import { ConnectKitButton } from "connectkit";
+
 import { Create } from "./components/Create";
 import { Gallery } from "./components/Gallery";
 import { Tour } from "./components/Tour";
@@ -12,7 +32,6 @@ import { ForkCreator } from "./components/ForkCreator";
 import { ToastShelf } from "./lib/toast";
 import { ConnectStorageButton } from "./components/ConnectStorageButton";
 import { About } from "./components/About";
-import { ConnectWalletButton } from "./components/ConnectWalletButton";
 
 export default function App() {
   const [showAbout, setShowAbout] = React.useState(false);
@@ -23,6 +42,7 @@ export default function App() {
   const [showVoting, setShowVoting] = React.useState(false);
   const [showForkCreator, setShowForkCreator] = React.useState(false);
   const [forkParentId, setForkParentId] = React.useState<number | null>(null);
+  const [menuEl, setMenuEl] = React.useState<null | HTMLElement>(null);
 
   React.useEffect(() => {
     const handleOpenAbout = () => setShowAbout(true);
@@ -129,106 +149,133 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen p-6 max-w-6xl mx-auto">
-      {/* Header */}
-      <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-bold">
+    <Box sx={{ minHeight: "100vh", bgcolor: "background.default" }}>
+      <AppBar color="transparent" position="sticky">
+        <Toolbar sx={{ borderBottom: "1px solid", borderColor: "divider" }}>
+          <Typography variant="h6" sx={{ fontWeight: 800, mr: 2 }}>
             Decentralized Creative Forking — MVP
-          </h1>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <ConnectWalletButton />
-          <ConnectStorageButton />
-          <a
-            className="text-sm underline"
-            href="/docs/index.html"
-            target="_blank"
-            rel="noreferrer"
-          >
-            Docs
-          </a>
-          <button
-            className="text-sm underline"
-            onClick={() => setShowTour(true)}
-          >
-            Start Tour
-          </button>
-          <button
-            className="text-sm underline"
-            onClick={() => setShowAbout(true)}
-          >
-            About
-          </button>
-          <div className="relative">
-            <details className="cursor-pointer">
-              <summary className="text-sm underline list-none">More</summary>
-              <div className="absolute right-0 mt-2 w-44 rounded border bg-white shadow-lg z-40">
-                <button
-                  className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50"
-                  onClick={resetLocalCache}
-                >
-                  Reset cache
-                </button>
-              </div>
-            </details>
-          </div>
-        </div>
-      </header>
-
-      <ToastShelf />
-
-      <main className="mt-6 grid md:grid-cols-2 gap-8">
-        {/* Checklist */}
-        <div className="md:col-span-2">
-          <QuickstartChecklist />
-        </div>
-
-        {/* Create + Gallery */}
-        <Create />
-        <div id="gallery">
-          <Gallery />
-        </div>
-
-        {/* Fork Explorer */}
-        <div className="md:col-span-2">
-          <ForkExplorer
-            onForkSelect={handleTokenSelect}
-            onCreateFork={handleCreateFork}
-            onViewContent={handleViewContent}
-          />
-        </div>
-
-        {/* Admin tools collapsed */}
-        <div className="md:col-span-2">
-          <details open={false}>
-            <summary className="font-medium cursor-pointer select-none px-2 py-1 rounded hover:bg-gray-50">
-              Admin
-            </summary>
-            <div className="mt-4 space-y-6">
-              <AdminPanel />
-              <RoleManager />
-              <AuditLog />
-            </div>
-          </details>
-        </div>
-      </main>
-
-      {/* Voting Modal */}
-      {showVoting && selectedTokenId && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold">
-                Vote for Content #{selectedTokenId}
-              </h2>
-              <button
-                onClick={() => setShowVoting(false)}
-                className="px-3 py-1 border rounded"
+          </Typography>
+          <Box sx={{ flexGrow: 1 }} />
+          <Stack direction="row" spacing={1} alignItems="center">
+            <ConnectKitButton />
+            <ConnectStorageButton />
+            <Button color="inherit" onClick={() => setShowTour(true)}>
+              Start Tour
+            </Button>
+            <Button color="inherit" onClick={() => setShowAbout(true)}>
+              About
+            </Button>
+            <Button
+              color="inherit"
+              component="a"
+              href="/docs/index.html"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Docs
+            </Button>
+            <IconButton
+              color="inherit"
+              onClick={(e) => setMenuEl(e.currentTarget)}
+            >
+              <MoreVertIcon />
+            </IconButton>
+            <Menu
+              anchorEl={menuEl}
+              open={Boolean(menuEl)}
+              onClose={() => setMenuEl(null)}
+              anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+              transformOrigin={{ vertical: "top", horizontal: "right" }}
+            >
+              <MenuItem
+                onClick={() => {
+                  setMenuEl(null);
+                  void resetLocalCache();
+                }}
               >
-                ×
-              </button>
-            </div>
+                Reset cache
+              </MenuItem>
+            </Menu>
+          </Stack>
+        </Toolbar>
+      </AppBar>
+
+      <Container maxWidth="lg" sx={{ py: 3 }}>
+        <ToastShelf />
+
+        {/* Responsive layout without MUI Grid */}
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+            gap: 3
+          }}
+        >
+          {/* Checklist spans full width */}
+          <Box sx={{ gridColumn: "1 / -1" }}>
+            <QuickstartChecklist />
+          </Box>
+
+          {/* Create + Gallery */}
+          <Paper sx={{ p: 2 }}>
+            <Create />
+          </Paper>
+          <Paper id="gallery" sx={{ p: 2 }}>
+            <Gallery />
+          </Paper>
+
+          {/* Fork Explorer - full width */}
+          <Box sx={{ gridColumn: "1 / -1" }}>
+            <Paper sx={{ p: 2 }}>
+              <Typography variant="h6" fontWeight={800} gutterBottom>
+                Fork Explorer
+              </Typography>
+              <ForkExplorer
+                onForkSelect={handleTokenSelect}
+                onCreateFork={handleCreateFork}
+                onViewContent={handleViewContent}
+              />
+            </Paper>
+          </Box>
+
+          {/* Admin - full width */}
+          <Box sx={{ gridColumn: "1 / -1" }}>
+            <Paper sx={{ p: 2 }}>
+              <Typography variant="h6" fontWeight={800} gutterBottom>
+                Admin
+              </Typography>
+              <Stack spacing={3}>
+                <AdminPanel />
+                <RoleManager />
+                <AuditLog />
+              </Stack>
+            </Paper>
+          </Box>
+        </Box>
+      </Container>
+
+      <Dialog
+        open={showVoting && !!selectedTokenId}
+        onClose={() => setShowVoting(false)}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between"
+          }}
+        >
+          <Typography variant="h6" fontWeight={800}>
+            Vote for Content #{selectedTokenId}
+          </Typography>
+          <IconButton onClick={() => setShowVoting(false)}>
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent dividers>
+          {selectedTokenId ? (
             <VotingInterface
               tokenId={selectedTokenId}
               onVoteSuccess={() => {
@@ -236,32 +283,47 @@ export default function App() {
                 setSelectedTokenId(null);
               }}
             />
-          </div>
-        </div>
-      )}
+          ) : null}
+        </DialogContent>
+      </Dialog>
 
-      {/* Fork Creator Modal */}
-      {showForkCreator && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <ForkCreator
-              parentTokenId={forkParentId || undefined}
-              onSuccess={() => {
-                setShowForkCreator(false);
-                setForkParentId(null);
-                window.location.reload();
-              }}
-              onClose={() => {
-                setShowForkCreator(false);
-                setForkParentId(null);
-              }}
-            />
-          </div>
-        </div>
-      )}
+      <Dialog
+        open={showForkCreator}
+        onClose={() => setShowForkCreator(false)}
+        fullWidth
+        maxWidth="md"
+      >
+        <DialogTitle
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between"
+          }}
+        >
+          <Typography variant="h6" fontWeight={800}>
+            Create Fork
+          </Typography>
+          <IconButton onClick={() => setShowForkCreator(false)}>
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent dividers>
+          <ForkCreator
+            parentTokenId={forkParentId || undefined}
+            onSuccess={() => {
+              setShowForkCreator(false);
+              setForkParentId(null);
+              window.location.reload();
+            }}
+            onClose={() => {
+              setShowForkCreator(false);
+              setForkParentId(null);
+            }}
+          />
+        </DialogContent>
+      </Dialog>
 
       {showAbout && <About onClose={() => setShowAbout(false)} />}
-
       {showTour && (
         <Tour
           onClose={() => {
@@ -270,6 +332,6 @@ export default function App() {
           }}
         />
       )}
-    </div>
+    </Box>
   );
 }

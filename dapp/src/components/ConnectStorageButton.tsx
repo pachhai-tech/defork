@@ -1,5 +1,6 @@
 import { useState } from "react";
 import * as Storacha from "@storacha/client";
+import { Button, Chip, Stack, Typography } from "@mui/material";
 
 export function ConnectStorageButton() {
   const [busy, setBusy] = useState(false);
@@ -17,7 +18,7 @@ export function ConnectStorageButton() {
           "Enter your email to connect Storacha (magic link):"
         );
         if (!email) throw new Error("Email required");
-        await client.login(email as Storacha.Account.EmailAddress); // user clicks magic link in email
+        await client.login(email as Storacha.Account.EmailAddress);
         const space = await client.createSpace("defork");
         await client.setCurrentSpace(space.did());
         setDid(space.did());
@@ -33,16 +34,23 @@ export function ConnectStorageButton() {
   }
 
   return (
-    <div className="flex items-center gap-2">
-      <button
-        className="px-3 py-1 border rounded"
-        disabled={busy}
-        onClick={connect}
-      >
+    <Stack direction="row" spacing={1} alignItems="center">
+      <Button variant="outlined" size="small" disabled={busy} onClick={connect}>
         {busy ? "Connecting…" : "Connect storage"}
-      </button>
-      {did && <span className="text-xs opacity-70">Space: {did}</span>}
-      {err && <span className="text-xs text-red-600">{err}</span>}
-    </div>
+      </Button>
+      {did && (
+        <Chip
+          size="small"
+          color="success"
+          variant="outlined"
+          label={`Space: ${did}`}
+        />
+      )}
+      {err && (
+        <Typography variant="caption" color="error">
+          {err}
+        </Typography>
+      )}
+    </Stack>
   );
 }

@@ -13,6 +13,22 @@ import { useState, useRef, DragEvent, useEffect } from "react";
 import { AIText } from "./AIText";
 import { AIImage } from "./AIImage";
 
+import {
+  Box,
+  Stack,
+  Typography,
+  TextField,
+  Checkbox,
+  FormControlLabel,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
+  Button,
+  Divider,
+  Chip
+} from "@mui/material";
+
 export function Create() {
   const { address, isConnected } = useAccount();
   const { writeContract, isPending } = useWriteContract();
@@ -105,14 +121,10 @@ export function Create() {
       return;
     }
 
-    // NSFW check for images
     if (!isText && imageBlob) {
       const safe = await isImageSafe(imageBlob);
       if (!safe) {
-        push({
-          kind: "error",
-          message: "Image flagged by NSFW filter"
-        });
+        push({ kind: "error", message: "Image flagged by NSFW filter" });
         return;
       }
     }
@@ -124,13 +136,12 @@ export function Create() {
         message: "Preparing content..."
       });
 
-      // Upload content and compute hash
+      // Upload content + compute hash
       let contentUri = "";
       let contentHash = "";
 
       if (isText) {
         contentHash = await sha256Text(text);
-        // For text, we can embed it in metadata or upload separately
         const textBlob = new Blob([text], { type: "text/plain" });
         contentUri = await uploadBlob(textBlob, `content_${Date.now()}.txt`);
       } else {
@@ -163,12 +174,11 @@ export function Create() {
       const royaltyRecv = isAddress(royaltyReceiver)
         ? royaltyReceiver
         : zeroAddress;
-      const royalty = BigInt(Number(royaltyBps) || 0); // Convert to BigInt
+      const royalty = BigInt(Number(royaltyBps) || 0);
 
-      const cType = contentType === "TEXT" ? 0 : 1; // StoryForkNFT.ContentType
-      const kType = contrib === "HUMAN" ? 0 : contrib === "AI" ? 1 : 2; // StoryForkNFT.ContributionType
+      const cType = contentType === "TEXT" ? 0 : 1;
+      const kType = contrib === "HUMAN" ? 0 : contrib === "AI" ? 1 : 2;
 
-      // ----- Send tx -----
       push({ kind: "info", title: "Minting", message: "Sending transaction…" });
 
       const result = await new Promise<`0x${string}`>((resolve, reject) => {
@@ -178,13 +188,13 @@ export function Create() {
             abi: ABI,
             functionName: "mint",
             args: [
-              address!, // to
-              metadataUri, // tokenURI (ipfs://...)
-              royaltyRecv, // royaltyReceiver (0 = use default)
-              royalty, // royaltyBps as BigInt
+              address!,
+              metadataUri,
+              royaltyRecv,
+              royalty,
               cType,
               kType,
-              modelId || "" // model id ("" if human)
+              modelId || ""
             ]
           },
           {
@@ -196,7 +206,6 @@ export function Create() {
 
       const txHash = result;
 
-      // Wait for receipt and extract tokenId from events
       const receipt = await waitForTransactionReceipt(config, { hash: txHash });
       let mintedTokenId: bigint | null = null;
 
@@ -204,12 +213,10 @@ export function Create() {
         if (log.address.toLowerCase() !== CONTRACT_ADDRESS.toLowerCase())
           continue;
         try {
-          // Prefer project event
           const dec = decodeEventLog({
             abi: ABI,
             data: log.data,
             topics: log.topics,
-            // Try specific event first; if it fails, catch and try Transfer below.
             eventName: "GenesisCreated"
           });
           if (dec?.eventName === "GenesisCreated") {
@@ -218,7 +225,6 @@ export function Create() {
           }
         } catch {}
         try {
-          // Fallback to ERC-721 Transfer(from=0x0,to=address,tokenId)
           const dec = decodeEventLog({
             abi: ABI,
             data: log.data,
@@ -236,7 +242,6 @@ export function Create() {
         } catch {}
       }
 
-      // Save a little breadcrumb for Gallery (optional)
       try {
         const chainId = Number(import.meta.env.VITE_CHAIN_ID);
         const arr = JSON.parse(localStorage.getItem("mintTxs") || "[]");
@@ -256,7 +261,6 @@ export function Create() {
         message: `NFT #${mintedTokenId} created successfully!`
       });
 
-      // Reset form
       setTitle("");
       setDesc("");
       setText("");
@@ -276,132 +280,183 @@ export function Create() {
   }
 
   return (
-    <section className="space-y-4">
-      <h2 className="font-semibold text-lg">Create / Mint</h2>
-      <div className="space-y-3">
-        <input
-          className="border rounded p-2 w-full"
-          placeholder="Title (required)"
+    <Box component="section">
+      <Typography variant="h6" fontWeight={800} gutterBottom>
+        Create / Mint
+      </Typography>
+      <Stack spacing={2}>
+        <TextField
+          label="Title"
+          required
+          fullWidth
           value={title}
           onChange={(e) => setTitle(e.target.value)}
         />
-        <textarea
-          className="border rounded p-2 w-full"
-          rows={3}
-          placeholder="Description (optional)"
+        <TextField
+          label="Description"
+          fullWidth
+          multiline
+          minRows={3}
           value={desc}
           onChange={(e) => setDesc(e.target.value)}
         />
-        <div className="flex gap-3 flex-wrap">
-          <input
-            className="border rounded p-2"
-            placeholder="Parent Token ID (optional)"
+
+        <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
+          <TextField
+            label="Parent Token ID (optional)"
             value={parentTokenId}
             onChange={(e) => setParentTokenId(e.target.value)}
+            sx={{ maxWidth: 280 }}
           />
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={hidden}
-              onChange={(e) => setHidden(e.target.checked)}
-            />
-            Mark hidden (metadata)
-          </label>
-        </div>
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={hidden}
+                onChange={(e) => setHidden(e.target.checked)}
+              />
+            }
+            label="Mark hidden (metadata)"
+          />
+        </Stack>
 
-        <div
+        <Box
           ref={dropRef}
-          className="border-2 border-dashed rounded p-4 text-center"
           onDrop={onDrop}
           onDragOver={onDragOver}
           onDragLeave={onDragLeave}
-          style={{ background: dragOver ? "#f0f9ff" : "transparent" }}
+          sx={{
+            border: "2px dashed",
+            borderColor: dragOver ? "primary.main" : "divider",
+            bgcolor: dragOver ? "primary.50" : "transparent",
+            borderRadius: 2,
+            p: 2,
+            textAlign: "center",
+            color: "text.secondary"
+          }}
         >
           Drag & drop text or image here, or use the controls below.
-        </div>
+        </Box>
 
-        <div className="flex gap-2 items-center">
-          <label>Content Type:</label>
-          <select
-            className="border p-1 rounded"
-            value={contentType}
-            onChange={(e) => setContentType(e.target.value as any)}
-          >
-            <option>TEXT</option>
-            <option>IMAGE</option>
-          </select>
-          <label>Contribution:</label>
-          <select
-            className="border p-1 rounded"
-            value={contrib}
-            onChange={(e) => setContrib(e.target.value as any)}
-          >
-            <option>HUMAN</option>
-            <option>AI</option>
-            <option>COLLAB</option>
-          </select>
-        </div>
+        <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
+          <FormControl sx={{ minWidth: 160 }}>
+            <InputLabel>Content Type</InputLabel>
+            <Select
+              label="Content Type"
+              value={contentType}
+              onChange={(e) => setContentType(e.target.value as any)}
+            >
+              <MenuItem value="TEXT">TEXT</MenuItem>
+              <MenuItem value="IMAGE">IMAGE</MenuItem>
+            </Select>
+          </FormControl>
+
+          <FormControl sx={{ minWidth: 160 }}>
+            <InputLabel>Contribution</InputLabel>
+            <Select
+              label="Contribution"
+              value={contrib}
+              onChange={(e) => setContrib(e.target.value as any)}
+            >
+              <MenuItem value="HUMAN">HUMAN</MenuItem>
+              <MenuItem value="AI">AI</MenuItem>
+              <MenuItem value="COLLAB">COLLAB</MenuItem>
+            </Select>
+          </FormControl>
+        </Stack>
 
         {contentType === "TEXT" ? (
-          <>
-            <textarea
-              className="border rounded p-2 w-full"
-              rows={8}
+          <Stack spacing={1.5}>
+            <TextField
+              label="Your text"
               placeholder="Paste or write your text..."
+              fullWidth
+              multiline
+              minRows={8}
               value={text}
               onChange={(e) => setText(e.target.value)}
             />
             <AIText onResult={onAIText} />
-          </>
+          </Stack>
         ) : (
-          <>
-            <div className="flex items-center gap-3 flex-wrap">
-              <input
-                type="file"
-                accept="image/*"
-                onChange={(e) => setImageBlob(e.target.files?.[0] || null)}
-              />
+          <Stack spacing={1.5}>
+            <Stack
+              direction="row"
+              spacing={2}
+              alignItems="center"
+              flexWrap="wrap"
+            >
+              <Button variant="outlined" component="label">
+                Upload Image
+                <input
+                  hidden
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => setImageBlob(e.target.files?.[0] || null)}
+                />
+              </Button>
               <AIImage onResult={onAIImage} />
-            </div>
+            </Stack>
             {imageBlob && (
-              <img
+              <Box
+                component="img"
                 alt="preview"
-                className="max-w-full rounded border"
                 src={URL.createObjectURL(imageBlob)}
+                sx={{
+                  maxWidth: "100%",
+                  borderRadius: 1,
+                  border: "1px solid",
+                  borderColor: "divider"
+                }}
               />
             )}
-          </>
+          </Stack>
         )}
 
-        <div className="flex gap-2 items-center">
-          <input
-            className="border rounded p-2 w-[60%]"
-            placeholder="Model ID (if AI)"
+        <Divider />
+
+        <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+          <TextField
+            label="Model ID (if AI)"
             value={modelId}
             onChange={(e) => setModelId(e.target.value)}
+            sx={{ flex: 1 }}
           />
-          <input
-            className="border rounded p-2 w-[40%]"
-            placeholder="Royalty (bps, e.g. 500=5%)"
+          <TextField
+            label="Royalty (bps, e.g. 500=5%)"
+            type="number"
             value={royaltyBps}
             onChange={(e) => setRoyaltyBps(Number(e.target.value))}
+            sx={{ width: { xs: "100%", sm: 240 } }}
           />
-        </div>
-        <input
-          className="border rounded p-2 w-full"
-          placeholder="Royalty Receiver (0x... or blank for default)"
+        </Stack>
+        <TextField
+          label="Royalty Receiver (0x... or blank for default)"
           value={royaltyReceiver}
           onChange={(e) => setRoyaltyReceiver(e.target.value)}
+          fullWidth
         />
 
-        <button
-          className="px-4 py-2 border rounded font-medium w-full"
+        <Button
+          variant="contained"
+          size="large"
+          fullWidth
           disabled={isPending}
           onClick={mint}
         >
           {isPending ? "Minting…" : "Mint NFT"}
-        </button>
-      </div>
-    </section>
+        </Button>
+
+        <Stack
+          direction="row"
+          spacing={1}
+          alignItems="center"
+          sx={{ opacity: 0.75 }}
+        >
+          <Chip size="small" label="IPFS-backed" />
+          <Chip size="small" label="On-chain hash" />
+          <Chip size="small" label="Royalties" />
+        </Stack>
+      </Stack>
+    </Box>
   );
 }

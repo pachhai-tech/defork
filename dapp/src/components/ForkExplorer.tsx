@@ -15,6 +15,17 @@ import {
   type Log
 } from "viem";
 import { ipfsToHttp } from "../lib/ipfs";
+import {
+  Box,
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  Divider,
+  Stack,
+  TextField,
+  Typography
+} from "@mui/material";
 
 interface ForkExplorerProps {
   onForkSelect?: (tokenId: number) => void;
@@ -44,7 +55,7 @@ export function ForkExplorer({
       })) as bigint;
       setTotal(Number(t));
 
-      // 2) Fetch ForkRegistered logs via a viem public client
+      // 2) Fetch ForkRegistered logs
       const chain = defineChain({
         id: Number(import.meta.env.VITE_CHAIN_ID || 0),
         name: "Configured",
@@ -55,18 +66,16 @@ export function ForkExplorer({
         chain,
         transport: http(import.meta.env.VITE_RPC_URL || "")
       });
-
       const latest = await client.getBlockNumber();
       const span = 50_000n;
       const fromBlock = latest > span ? latest - span : 0n;
-
       const logs = await client.getLogs({
         address: REGISTRY_ADDRESS,
         fromBlock,
         toBlock: latest
       });
 
-      let es = [] as { parent: number; child: number }[];
+      let es: { parent: number; child: number }[] = [];
       for (const log of logs as Log[]) {
         try {
           const dec = decodeEventLog({
@@ -80,11 +89,11 @@ export function ForkExplorer({
             es.push({ parent, child });
           }
         } catch {
-          // ignore non-matching events
+          // ignore non-matching
         }
       }
 
-      // 3) Fallback: traverse metadata to detect parentTokenId relationships
+      // 3) Fallback using metadata if no logs
       if (es.length === 0) {
         try {
           const out: { parent: number; child: number }[] = [];
@@ -134,13 +143,10 @@ export function ForkExplorer({
   }, [edges, total]);
 
   const toggleExpanded = (tokenId: number) => {
-    const newExpanded = new Set(expandedNodes);
-    if (newExpanded.has(tokenId)) {
-      newExpanded.delete(tokenId);
-    } else {
-      newExpanded.add(tokenId);
-    }
-    setExpandedNodes(newExpanded);
+    const next = new Set(expandedNodes);
+    if (next.has(tokenId)) next.delete(tokenId);
+    else next.add(tokenId);
+    setExpandedNodes(next);
   };
 
   const Tree = ({
@@ -156,127 +162,154 @@ export function ForkExplorer({
     const isExpanded = expandedNodes.has(id);
     const hasChildren = children.length > 0;
 
-    // Filter based on search
     if (searchQuery && !id.toString().includes(searchQuery)) {
       return null;
     }
 
     return (
-      <div style={{ marginLeft: depth * 20 }} className="mb-2">
-        <div className="border rounded p-3 bg-white hover:shadow-sm transition-shadow">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              {hasChildren && (
-                <button
-                  onClick={() => toggleExpanded(id)}
-                  className="px-2 py-1 border rounded text-xs hover:bg-gray-50"
-                >
-                  {isExpanded ? "−" : "+"}
-                </button>
-              )}
-
-              <div>
-                <div className="font-medium">
-                  <span
-                    className="cursor-pointer hover:text-blue-600 transition-colors"
-                    onClick={() => onForkSelect?.(id)}
+      <Box sx={{ ml: depth * 2, mb: 1 }}>
+        <Card variant="outlined">
+          <CardContent sx={{ py: 1.5 }}>
+            <Stack
+              direction="row"
+              alignItems="center"
+              justifyContent="space-between"
+              spacing={2}
+            >
+              <Stack direction="row" alignItems="center" spacing={1.5}>
+                {hasChildren && (
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    onClick={() => toggleExpanded(id)}
                   >
-                    Content #{id}
-                  </span>
-                </div>
-                <div className="text-xs opacity-70">
-                  {hasChildren ? `${children.length} forks` : "No forks yet"} •
-                  Depth {depth}
-                </div>
-              </div>
-            </div>
+                    {isExpanded ? "−" : "+"}
+                  </Button>
+                )}
+                <Stack>
+                  <Typography fontWeight={700}>
+                    <span
+                      style={{ cursor: "pointer" }}
+                      onClick={() => onForkSelect?.(id)}
+                    >
+                      Content #{id}
+                    </span>
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {hasChildren ? `${children.length} forks` : "No forks yet"}{" "}
+                    • Depth {depth}
+                  </Typography>
+                </Stack>
+              </Stack>
 
-            <div className="flex gap-2">
-              <button
-                onClick={() => onViewContent?.(id)}
-                className="px-2 py-1 border rounded text-xs hover:bg-gray-50"
-              >
-                👁 View
-              </button>
-              <button
-                onClick={() => onCreateFork?.(id)}
-                className="px-2 py-1 border rounded text-xs hover:bg-blue-50"
-              >
-                🍴 Fork
-              </button>
-            </div>
-          </div>
-        </div>
+              <Stack direction="row" spacing={1}>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={() => onViewContent?.(id)}
+                >
+                  View
+                </Button>
+                <Button
+                  size="small"
+                  variant="contained"
+                  onClick={() => onCreateFork?.(id)}
+                >
+                  Fork
+                </Button>
+              </Stack>
+            </Stack>
+          </CardContent>
+        </Card>
 
         {isExpanded && hasChildren && (
-          <div className="mt-2">
+          <Box sx={{ mt: 1 }}>
             {children.map((childId) => (
               <Tree key={childId} id={childId} kids={kids} depth={depth + 1} />
             ))}
-          </div>
+          </Box>
         )}
-      </div>
+      </Box>
     );
   };
 
   return (
-    <section className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="font-semibold text-lg">🌳 Fork Explorer</h2>
-        <button
+    <Box component="section">
+      <Stack
+        direction="row"
+        alignItems="center"
+        justifyContent="space-between"
+        mb={2}
+      >
+        <Typography variant="h6" fontWeight={800}>
+          🌳 Fork Explorer
+        </Typography>
+        <Button
           onClick={load}
           disabled={loading}
-          className="px-3 py-1 border rounded text-sm hover:bg-gray-50"
+          variant="outlined"
+          size="small"
         >
-          {loading ? "Refreshing..." : "🔄 Refresh"}
-        </button>
-      </div>
+          {loading ? "Refreshing..." : "Refresh"}
+        </Button>
+      </Stack>
 
-      <div className="flex items-center gap-3 text-sm opacity-70">
-        <span>
-          Tokens: {total} • Edges: {edges.length}
-        </span>
-      </div>
+      <Typography variant="caption" color="text.secondary">
+        Tokens: {total} • Edges: {edges.length}
+      </Typography>
 
-      {/* Search */}
-      <div className="flex gap-2">
-        <input
-          type="text"
-          className="border rounded p-2 flex-1"
-          placeholder="Search by token ID..."
+      <Stack
+        direction={{ xs: "column", sm: "row" }}
+        spacing={1.5}
+        alignItems="center"
+        sx={{ mt: 1.5 }}
+      >
+        <TextField
+          size="small"
+          fullWidth
+          placeholder="Search by token ID…"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
         />
-        <button
-          onClick={() => setSearchQuery("")}
-          className="px-3 py-1 border rounded hover:bg-gray-50"
-        >
+        <Button variant="text" onClick={() => setSearchQuery("")}>
           Clear
-        </button>
-      </div>
+        </Button>
+      </Stack>
 
-      {/* Tree Display */}
-      <div className="space-y-2 max-h-96 overflow-y-auto">
+      <Divider sx={{ my: 2 }} />
+
+      <Box sx={{ maxHeight: 400, overflowY: "auto" }}>
         {graph.roots.length === 0 ? (
-          <div className="text-center py-8 opacity-70">
+          <Typography align="center" sx={{ opacity: 0.7, py: 6 }}>
             No content items found. Create the first one above! ✨
-          </div>
+          </Typography>
         ) : (
           graph.roots.map((rootId) => (
             <Tree key={rootId} id={rootId} kids={graph.kids} depth={0} />
           ))
         )}
-      </div>
+      </Box>
 
-      {/* Legend */}
-      <div className="text-xs opacity-70 border-t pt-3">
-        <div className="font-medium mb-1">How to use:</div>
-        <div>• Click token names to select for voting</div>
-        <div>• Use 👁 View to see content in Gallery</div>
-        <div>• Use 🍴 Fork to create new branches</div>
-        <div>• + / − buttons expand/collapse fork trees</div>
-        <div>• Tree shows parent-child relationships tracked on-chain</div>
-      </div>
-    </section>
+      <Divider sx={{ my: 2 }} />
+
+      <Stack spacing={0.5}>
+        <Typography variant="subtitle2">How to use:</Typography>
+        <Typography variant="caption">
+          • Click token names to select for voting
+        </Typography>
+        <Typography variant="caption">
+          • Use View to see content in Gallery
+        </Typography>
+        <Typography variant="caption">
+          • Use Fork to create new branches
+        </Typography>
+        <Typography variant="caption">
+          • + / − buttons expand/collapse fork trees
+        </Typography>
+        <Typography variant="caption">
+          • Tree shows parent-child relationships tracked on-chain
+        </Typography>
+      </Stack>
+    </Box>
   );
 }

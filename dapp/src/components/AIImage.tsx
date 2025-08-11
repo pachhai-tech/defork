@@ -1,57 +1,82 @@
-import { useToast } from "../lib/toast";
 import { useState } from "react";
+import { Button, Stack, TextField, Typography } from "@mui/material";
 
 export function AIImage({
   onResult
 }: {
   onResult: (blob: Blob, modelId: string) => void;
 }) {
-  const toast = useToast();
+  const [prompt, setPrompt] = useState("");
   const [loading, setLoading] = useState(false);
-  const [progress, setProgress] = useState<number>(0);
-  const [prompt, setPrompt] = useState(
-    "IMF dossier style portrait, cinematic lighting"
-  );
+  const [err, setErr] = useState<string | null>(null);
 
-  async function run() {
+  async function generate() {
+    if (!prompt) return;
     setLoading(true);
+    setErr(null);
     try {
-      toast?.show?.({ message: "Loading image model…", type: "info" });
-      const mod = await import(
-        /* @vite-ignore */ "https://unpkg.com/@mlc-ai/web-stable-diffusion@0.1.1/dist/index.esm.js"
-      );
-      const txt2img = mod.txt2img || mod["txt2img"];
+      // Load remote ESM with a variable URL and vite-ignore to avoid TS2307 type resolution
+      const url =
+        "https://unpkg.com/@mlc-ai/web-stable-diffusion@0.1.1/dist/index.esm.js";
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-ignore -- dynamic remote import is intentionally not type-checked
+      const mod: any = await import(/* @vite-ignore */ url);
+      const txt2img = mod?.txt2img || (mod as any)["txt2img"];
+      if (!txt2img) {
+        throw new Error("AI image generator not available.");
+      }
+
       const imageBitmap: ImageBitmap = await txt2img({ prompt, steps: 15 });
+
       const canvas = document.createElement("canvas");
       canvas.width = imageBitmap.width;
       canvas.height = imageBitmap.height;
       const ctx = canvas.getContext("2d")!;
       ctx.drawImage(imageBitmap, 0, 0);
-      const blob = await new Promise<Blob>((res) =>
-        canvas.toBlob((b) => res(b!), "image/png")
+      const blob = await new Promise<Blob>((res, rej) =>
+        canvas.toBlob(
+          (b) => (b ? res(b) : rej(new Error("toBlob failed"))),
+          "image/png"
+        )
       );
-      onResult(blob, "mlc-sd-webgpu");
-    } catch (e) {
-      alert(`AI error: ${(e as Error).message}`);
+
+      onResult(blob, "mlc-web-stable-diffusion@0.1.1");
+    } catch (e: any) {
+      setErr(e?.message || "Failed to generate image");
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div className="space-y-2">
-      <input
-        className="w-full border rounded p-2"
-        value={prompt}
-        onChange={(e) => setPrompt(e.target.value)}
-      />
-      <button
-        className="px-3 py-1 border rounded"
-        onClick={run}
-        disabled={loading}
+    <Stack spacing={1} sx={{ width: "100%" }}>
+      <Stack
+        direction={{ xs: "column", sm: "row" }}
+        spacing={1}
+        alignItems="center"
       >
-        {loading ? "Generating…" : "Generate Image (Local)"}
-      </button>
-    </div>
+        <TextField
+          size="small"
+          label="Image prompt"
+          placeholder="Describe the image to generate"
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          fullWidth
+        />
+        <Button
+          size="small"
+          variant="outlined"
+          onClick={generate}
+          disabled={loading || !prompt}
+        >
+          {loading ? "Generating…" : "AI Generate"}
+        </Button>
+      </Stack>
+      {err && (
+        <Typography variant="caption" color="error">
+          {err}
+        </Typography>
+      )}
+    </Stack>
   );
 }

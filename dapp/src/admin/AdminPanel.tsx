@@ -1,15 +1,23 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { useAccount, useWriteContract } from "wagmi";
 import { isAddress } from "viem";
 import { CONTRACT_ADDRESS, ABI } from "../config/contract";
 import { useToast } from "../lib/toast";
+import {
+  Card,
+  CardHeader,
+  CardContent,
+  Typography,
+  Stack,
+  TextField,
+  FormControlLabel,
+  Checkbox,
+  Button,
+  Alert
+} from "@mui/material";
 
 // Simple allowlist - add your admin addresses here
-const ALLOWLIST = [
-  // lowercase addresses
-  "0xe3c0743e01bE37c42B2ee57BD1aA30c9c266c0Ae", // Replace with actual admin addresses
-  "anujad12" // Add current user for testing
-];
+const ALLOWLIST = ["0xe3c0743e01bE37c42B2ee57BD1aA30c9c266c0Ae", "anujad12"];
 
 export default function AdminPanel() {
   const { address } = useAccount();
@@ -22,7 +30,7 @@ export default function AdminPanel() {
   const allowed =
     address &&
     (ALLOWLIST.includes(address.toLowerCase()) ||
-      ALLOWLIST.includes("anujad12")); // Allow current user
+      ALLOWLIST.includes("anujad12"));
 
   async function toggleHidden() {
     if (!allowed) {
@@ -39,8 +47,8 @@ export default function AdminPanel() {
       await writeContract({
         address: CONTRACT_ADDRESS,
         abi: ABI,
-        functionName: "setTokenUri", // Assuming this is the function to update metadata
-        args: [BigInt(tokenId), hidden ? "hidden" : "visible"] // Simplified for demo
+        functionName: "setTokenUri",
+        args: [BigInt(tokenId), hidden ? "hidden" : "visible"]
       });
       setStatus("Transaction sent successfully");
       push({
@@ -56,51 +64,63 @@ export default function AdminPanel() {
 
   if (!allowed) {
     return (
-      <div className="border rounded p-4 bg-red-50 text-red-800">
-        <h3 className="font-semibold">Admin Panel</h3>
-        <div>Not authorized. Connect with an admin wallet.</div>
-        <div className="text-xs mt-2">Current address: {address || "None"}</div>
-      </div>
+      <Alert severity="error" variant="outlined">
+        <Typography fontWeight={700} component="div">
+          Admin Panel
+        </Typography>
+        Not authorized. Connect with an admin wallet.
+        <Typography
+          variant="caption"
+          display="block"
+          color="text.secondary"
+          sx={{ mt: 1 }}
+        >
+          Current address: {address || "None"}
+        </Typography>
+      </Alert>
     );
   }
 
   return (
-    <div className="border rounded p-4 bg-yellow-50">
-      <h3 className="font-semibold mb-4">Admin Panel</h3>
-      <div className="space-y-3">
-        <div>
-          <label className="block text-sm font-medium mb-1">Token ID:</label>
-          <input
-            className="border rounded p-2 w-full"
+    <Card variant="outlined">
+      <CardHeader
+        title={<Typography fontWeight={800}>Admin Panel</Typography>}
+      />
+      <CardContent>
+        <Stack spacing={2}>
+          <TextField
+            label="Token ID"
             value={tokenId}
             onChange={(e) => setTokenId(e.target.value)}
             placeholder="Enter token ID to moderate"
           />
-        </div>
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={hidden}
+                onChange={(e) => setHidden(e.target.checked)}
+              />
+            }
+            label="Mark as hidden"
+          />
+          <Button
+            variant="contained"
+            onClick={toggleHidden}
+            disabled={isPending || !tokenId}
+          >
+            {isPending ? "Processing..." : "Toggle Visibility"}
+          </Button>
 
-        <div>
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={hidden}
-              onChange={(e) => setHidden(e.target.checked)}
-            />
-            <span className="text-sm">Mark as hidden</span>
-          </label>
-        </div>
-
-        <button
-          onClick={toggleHidden}
-          disabled={isPending || !tokenId}
-          className="px-4 py-2 border rounded font-medium disabled:opacity-50"
-        >
-          {isPending ? "Processing..." : "Toggle Visibility"}
-        </button>
-
-        {status && (
-          <div className="text-sm mt-2 p-2 bg-gray-100 rounded">{status}</div>
-        )}
-      </div>
-    </div>
+          {status && (
+            <Typography
+              variant="body2"
+              sx={{ mt: 1, p: 1, bgcolor: "grey.100", borderRadius: 1 }}
+            >
+              {status}
+            </Typography>
+          )}
+        </Stack>
+      </CardContent>
+    </Card>
   );
 }

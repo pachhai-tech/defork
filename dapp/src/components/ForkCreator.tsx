@@ -16,6 +16,16 @@ import {
   REGISTRY_ABI
 } from "../config/contract";
 
+import {
+  Alert,
+  Box,
+  Button,
+  Divider,
+  Stack,
+  TextField,
+  Typography
+} from "@mui/material";
+
 interface ForkCreatorProps {
   parentTokenId?: number;
   onSuccess?: (tokenId: number) => void;
@@ -37,7 +47,6 @@ export function ForkCreator({
   const [forkHash, setForkHash] = useState<string>();
   const [newTokenId, setNewTokenId] = useState<number>();
 
-  // Get fork cost if this is a fork
   const { data: forkCost } = useReadContract({
     address: REGISTRY_ADDRESS,
     abi: REGISTRY_ABI,
@@ -46,7 +55,6 @@ export function ForkCreator({
     query: { enabled: !!parentTokenId }
   });
 
-  // Get parent content details
   const { data: parentTokenURI } = useReadContract({
     address: NFT_ADDRESS,
     abi: NFT_ABI,
@@ -55,31 +63,26 @@ export function ForkCreator({
     query: { enabled: !!parentTokenId }
   });
 
-  // Write functions
   const { writeContract: mintNFT, isPending: isMintPending } =
     useWriteContract();
   const { writeContract: registerFork, isPending: isForkPending } =
     useWriteContract();
   const { writeContract: setContentHash } = useWriteContract();
 
-  // Wait for mint transaction
   const { isLoading: isMintTxPending, data: mintReceipt } =
     useWaitForTransactionReceipt({
       hash: mintHash as `0x${string}`,
       query: { enabled: !!mintHash }
     });
 
-  // Wait for fork registration
   const { isLoading: isForkTxPending, data: forkReceipt } =
     useWaitForTransactionReceipt({
       hash: forkHash as `0x${string}`,
       query: { enabled: !!forkHash }
     });
 
-  // Handle mint success
   useEffect(() => {
     if (mintHash && !isMintTxPending && mintReceipt) {
-      // Extract token ID from GenesisCreated event
       const genesisEvent = mintReceipt.logs.find((log) => {
         try {
           const decoded = decodeEventLog({
@@ -87,6 +90,7 @@ export function ForkCreator({
             data: log.data,
             topics: log.topics
           });
+          // @ts-ignore - eventName only exists after successful decode
           return decoded.eventName === "GenesisCreated";
         } catch {
           return false;
@@ -100,13 +104,11 @@ export function ForkCreator({
             data: genesisEvent.data,
             topics: genesisEvent.topics
           });
-          const tokenId = Number(decoded.args.tokenId);
+          const tokenId = Number((decoded as any).args.tokenId);
           setNewTokenId(tokenId);
 
-          // Set content hash
           setContentHashForToken(tokenId);
 
-          // Register fork if this is a fork
           if (parentTokenId && forkCost) {
             registerForkRelation(tokenId);
           } else {
@@ -121,7 +123,6 @@ export function ForkCreator({
     }
   }, [mintHash, isMintTxPending, mintReceipt]);
 
-  // Handle fork registration success
   useEffect(() => {
     if (forkHash && !isForkTxPending && forkReceipt && newTokenId) {
       handleSuccess(newTokenId);
@@ -129,7 +130,6 @@ export function ForkCreator({
     }
   }, [forkHash, isForkTxPending, forkReceipt, newTokenId]);
 
-  // Load parent content for fork context
   useEffect(() => {
     if (parentTokenURI && parentTokenId) {
       loadParentContent(parentTokenURI as string);
@@ -142,10 +142,7 @@ export function ForkCreator({
         const cid = tokenURI.replace("ipfs://", "");
         const response = await fetch(`https://ipfs.io/ipfs/${cid}`);
         const metadata = await response.json();
-
-        if (metadata.name) {
-          setTitle(`Fork of: ${metadata.name}`);
-        }
+        if (metadata.name) setTitle(`Fork of: ${metadata.name}`);
       }
     } catch (error) {
       console.error("Failed to load parent content:", error);
@@ -195,10 +192,7 @@ export function ForkCreator({
     } catch (error) {
       console.error("Failed to register fork:", error);
       setIsCreating(false);
-      push({
-        kind: "error",
-        message: "Failed to register fork relationship"
-      });
+      push({ kind: "error", message: "Failed to register fork relationship" });
     }
   };
 
@@ -213,7 +207,6 @@ export function ForkCreator({
 
     onSuccess?.(tokenId);
 
-    // Reset form
     setContent("");
     setTitle("");
     setContributorRoyalty("5");
@@ -232,7 +225,6 @@ export function ForkCreator({
     try {
       setIsCreating(true);
 
-      // Create metadata
       const metadata = {
         name: title,
         description: content,
@@ -257,10 +249,8 @@ export function ForkCreator({
         ]
       };
 
-      // Upload to IPFS
       const tokenURI = await uploadJSON(metadata, `content_${Date.now()}.json`);
 
-      // Mint NFT
       const royaltyBps = BigInt(
         Math.floor(parseFloat(contributorRoyalty) * 100)
       );
@@ -276,9 +266,9 @@ export function ForkCreator({
               tokenURI,
               address, // royalty receiver
               royaltyBps,
-              0, // TEXT content type
-              0, // HUMAN contribution type
-              "" // no model ID for human content
+              0, // TEXT
+              0, // HUMAN
+              "" // no model id
             ]
           },
           {
@@ -303,152 +293,149 @@ export function ForkCreator({
     }
   };
 
-  // Format fork cost safely
   const formatForkCost = () => {
     if (!forkCost) return "...";
-    if (typeof forkCost === "bigint") {
-      return formatEther(forkCost);
-    }
+    if (typeof forkCost === "bigint") return formatEther(forkCost);
     return "0";
   };
 
   return (
-    <section className="space-y-4 border rounded p-4">
-      <div className="flex items-center justify-between">
-        <h3 className="font-semibold text-lg">
+    <Box component="section">
+      <Stack
+        direction="row"
+        alignItems="center"
+        justifyContent="space-between"
+        mb={2}
+      >
+        <Typography variant="h6" fontWeight={800}>
           {parentTokenId
             ? `🍴 Fork Content #${parentTokenId}`
             : "✨ Create New Content"}
-        </h3>
+        </Typography>
         {onClose && (
-          <button onClick={onClose} className="px-2 py-1 border rounded">
-            ×
-          </button>
+          <Button size="small" variant="outlined" onClick={onClose}>
+            Close
+          </Button>
         )}
-      </div>
+      </Stack>
 
       {typeof forkCost === "bigint" && (
-        <div className="p-2 bg-yellow-50 border border-yellow-200 rounded text-sm">
+        <Alert severity="warning" variant="outlined" sx={{ mb: 2 }}>
           💰 Fork cost: {formatForkCost()} ETH
-        </div>
+        </Alert>
       )}
 
-      {/* Parent content preview */}
       {parentTokenId && (
-        <div className="p-3 bg-gray-50 rounded border">
-          <div className="text-sm font-medium mb-1">
-            Forking from Content #{parentTokenId}
-          </div>
-          <div className="text-xs opacity-70">
-            This will create a new branch in the content tree with on-chain
-            lineage tracking.
-          </div>
-        </div>
+        <Alert severity="info" variant="outlined" sx={{ mb: 2 }}>
+          Forking from Content #{parentTokenId}. This will record on-chain
+          lineage.
+        </Alert>
       )}
 
-      {/* Title */}
-      <div className="space-y-2">
-        <label className="text-sm font-medium">Title *</label>
-        <input
-          type="text"
-          className="border rounded p-2 w-full"
+      <Stack spacing={2}>
+        <TextField
+          label="Title *"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="Enter a title for your content"
+          fullWidth
         />
-      </div>
 
-      {/* Content */}
-      <div className="space-y-2">
-        <label className="text-sm font-medium">Content *</label>
-        <textarea
-          className="border rounded p-2 w-full resize-none"
+        <TextField
+          label="Content *"
           value={content}
           onChange={(e) => setContent(e.target.value)}
           placeholder="Write your story, describe your art, or create something amazing..."
-          rows={6}
+          multiline
+          minRows={6}
+          fullWidth
         />
-        <div className="text-xs opacity-70">{content.length} characters</div>
-      </div>
+        <Typography variant="caption" color="text.secondary">
+          {content.length} characters
+        </Typography>
 
-      {/* Contributor Royalty */}
-      <div className="space-y-2">
-        <label className="text-sm font-medium">
-          Your Contributor Royalty (%)
-        </label>
-        <input
+        <Divider />
+
+        <TextField
           type="number"
-          className="border rounded p-2 w-full"
+          label="Your Contributor Royalty (%)"
           value={contributorRoyalty}
           onChange={(e) => setContributorRoyalty(e.target.value)}
-          min="0"
-          max="20"
-          step="0.1"
+          inputProps={{ min: 0, max: 20, step: 0.1 }}
+          helperText="Percentage of future votes you'll receive (max 20%)"
+          fullWidth
         />
-        <div className="text-xs opacity-70">
-          Percentage of future votes you'll receive (max 20%)
-        </div>
-      </div>
 
-      {/* Royalty Breakdown */}
-      <div className="p-3 bg-blue-50 rounded border border-blue-200">
-        <div className="font-medium text-blue-900 mb-2">
-          📊 Revenue Distribution Preview:
-        </div>
-        <div className="space-y-1 text-sm text-blue-700">
-          <div>• {contributorRoyalty}% - Your contributor royalty</div>
-          {parentTokenId && <div>• 5% - Genesis creator royalty</div>}
-          <div>
+        <Alert severity="info" variant="outlined">
+          <Typography fontWeight={700}>
+            📊 Revenue Distribution Preview:
+          </Typography>
+          <Typography variant="body2">
+            • {contributorRoyalty}% - Your contributor royalty
+          </Typography>
+          {parentTokenId && (
+            <Typography variant="body2">
+              • 5% - Genesis creator royalty
+            </Typography>
+          )}
+          <Typography variant="body2">
             • ~
             {Math.max(
               0,
-              93 - parseFloat(contributorRoyalty) - (parentTokenId ? 5 : 0)
+              93 -
+                parseFloat(contributorRoyalty || "0") -
+                (parentTokenId ? 5 : 0)
             )}
             % - Split among all lineage authors
-          </div>
-          <div>• 2% - Platform development</div>
-        </div>
-      </div>
+          </Typography>
+          <Typography variant="body2">• 2% - Platform development</Typography>
+        </Alert>
 
-      {/* Create Button */}
-      <button
-        onClick={handleCreateContent}
-        disabled={
-          !content ||
-          !title ||
-          !address ||
-          isCreating ||
-          isMintPending ||
-          isForkPending ||
-          isMintTxPending ||
-          isForkTxPending
-        }
-        className="w-full px-4 py-2 border rounded font-medium disabled:opacity-50"
-      >
-        {isMintTxPending
-          ? "Minting NFT..."
-          : isForkTxPending
-          ? "Registering Fork..."
-          : isCreating
-          ? "Creating..."
-          : parentTokenId
-          ? `Create Fork (${formatForkCost()} ETH)`
-          : "Create Content"}
-      </button>
+        <Button
+          variant="contained"
+          fullWidth
+          onClick={handleCreateContent}
+          disabled={
+            !content ||
+            !title ||
+            !address ||
+            isCreating ||
+            isMintPending ||
+            isForkPending ||
+            isMintTxPending ||
+            isForkTxPending
+          }
+        >
+          {isMintTxPending
+            ? "Minting NFT..."
+            : isForkTxPending
+            ? "Registering Fork..."
+            : isCreating
+            ? "Creating..."
+            : parentTokenId
+            ? `Create Fork (${formatForkCost()} ETH)`
+            : "Create Content"}
+        </Button>
 
-      {/* Additional Info */}
-      <div className="text-xs opacity-70 space-y-1 border-t pt-3">
-        <div>
-          • Your content will be stored on IPFS for decentralized access
-        </div>
-        <div>• SHA-256 hash will be stored on-chain for verification</div>
-        <div>
-          • You can receive votes and royalties immediately after creation
-        </div>
-        {parentTokenId && (
-          <div>• Fork relationship will be recorded permanently on-chain</div>
-        )}
-      </div>
-    </section>
+        <Divider />
+
+        <Stack spacing={0.5}>
+          <Typography variant="caption">
+            • Your content will be stored on IPFS
+          </Typography>
+          <Typography variant="caption">
+            • SHA-256 hash stored on-chain for verification
+          </Typography>
+          <Typography variant="caption">
+            • You can receive votes and royalties immediately after creation
+          </Typography>
+          {parentTokenId && (
+            <Typography variant="caption">
+              • Fork relationship recorded on-chain permanently
+            </Typography>
+          )}
+        </Stack>
+      </Stack>
+    </Box>
   );
 }

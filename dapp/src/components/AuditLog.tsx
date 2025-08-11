@@ -7,7 +7,16 @@ import {
   type Log
 } from "viem";
 import { ABI, CONTRACT_ADDRESS } from "../config/contract";
-import { ipfsToHttp } from "../lib/ipfs";
+import {
+  Alert,
+  Box,
+  Card,
+  CardContent,
+  CardHeader,
+  Link,
+  Stack,
+  Typography
+} from "@mui/material";
 
 type Decoded = {
   blockNumber: bigint;
@@ -27,7 +36,6 @@ export function AuditLog() {
         setLoading(true);
         setErr(null);
 
-        // Build a viem client from your Vite env (no wagmi dependency here)
         const chain = defineChain({
           id: Number(import.meta.env.VITE_CHAIN_ID || 0),
           name: "Configured",
@@ -39,7 +47,6 @@ export function AuditLog() {
           transport: http(import.meta.env.VITE_RPC_URL || "")
         });
 
-        // Pull recent logs to avoid huge scans
         const latest = await client.getBlockNumber();
         const span = 10_000n;
         const fromBlock = latest > span ? latest - span : 0n;
@@ -65,11 +72,10 @@ export function AuditLog() {
               args: (d.args || {}) as any
             });
           } catch {
-            // Not one of our ABI events — ignore
+            // ignore unrecognized events
           }
         }
 
-        // newest first
         decoded.sort((a, b) => (a.blockNumber > b.blockNumber ? -1 : 1));
         setRows(decoded.slice(0, 100));
       } catch (e: any) {
@@ -86,11 +92,8 @@ export function AuditLog() {
       if (typeof value === "bigint") {
         formatted[key] = value.toString();
       } else if (typeof value === "string" && value.startsWith("0x")) {
-        // Truncate long hex values
         formatted[key] =
-          value.length > 10
-            ? `${value.slice(0, 6)}...${value.slice(-4)}`
-            : value;
+          value.length > 12 ? `${value.slice(0, 8)}…${value.slice(-4)}` : value;
       } else {
         formatted[key] = String(value);
       }
@@ -99,39 +102,79 @@ export function AuditLog() {
   };
 
   return (
-    <section className="space-y-3">
-      <h2 className="font-semibold text-lg">Contract Activity</h2>
-      {loading && <div className="opacity-70 text-sm">Loading logs…</div>}
-      {err && <div className="text-sm text-red-600">{err}</div>}
-      {!loading && !err && rows.length === 0 && (
-        <div className="opacity-70 text-sm">No recent events.</div>
-      )}
-      <div className="grid gap-2 max-h-96 overflow-y-auto">
-        {rows.map((r, i) => (
-          <div key={`${r.txHash}-${i}`} className="border rounded p-2 text-xs">
-            <div className="flex items-center justify-between mb-2">
-              <div className="font-medium">{r.eventName}</div>
-              <div className="text-xs opacity-50">
-                Block {r.blockNumber.toString()}
-              </div>
-            </div>
-            <div className="opacity-70 break-all mb-2">
-              tx:{" "}
-              <a
-                href={`https://hashscan.io/testnet/transaction/${r.txHash}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-500 hover:underline"
+    <Card variant="outlined">
+      <CardHeader
+        title={<Typography fontWeight={800}>Contract Activity</Typography>}
+        subheader={
+          loading
+            ? "Loading logs…"
+            : rows.length === 0
+            ? "No recent events."
+            : undefined
+        }
+      />
+      <CardContent>
+        {err && (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {err}
+          </Alert>
+        )}
+
+        <Stack spacing={1.5} sx={{ maxHeight: 400, overflowY: "auto" }}>
+          {rows.map((r, i) => (
+            <Box
+              key={`${r.txHash}-${i}`}
+              sx={{
+                border: "1px solid",
+                borderColor: "divider",
+                borderRadius: 1,
+                p: 1.5
+              }}
+            >
+              <Stack
+                direction="row"
+                alignItems="center"
+                justifyContent="space-between"
+                sx={{ mb: 1 }}
               >
-                {r.txHash}
-              </a>
-            </div>
-            <pre className="bg-gray-50 p-2 rounded overflow-auto text-xs">
-              {JSON.stringify(formatArgs(r.args), null, 2)}
-            </pre>
-          </div>
-        ))}
-      </div>
-    </section>
+                <Typography fontWeight={700} variant="body2">
+                  {r.eventName}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Block {r.blockNumber.toString()}
+                </Typography>
+              </Stack>
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ wordBreak: "break-all", mb: 1 }}
+              >
+                tx:{" "}
+                <Link
+                  href={`https://hashscan.io/testnet/transaction/${r.txHash}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {r.txHash}
+                </Link>
+              </Typography>
+              <Box
+                component="pre"
+                sx={{
+                  backgroundColor: "grey.50",
+                  p: 1,
+                  borderRadius: 1,
+                  overflow: "auto",
+                  fontSize: "0.75rem",
+                  m: 0
+                }}
+              >
+                {JSON.stringify(formatArgs(r.args), null, 2)}
+              </Box>
+            </Box>
+          ))}
+        </Stack>
+      </CardContent>
+    </Card>
   );
 }

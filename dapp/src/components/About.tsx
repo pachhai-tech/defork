@@ -1,5 +1,15 @@
-import * as React from "react";
 import { useAccount, useChainId } from "wagmi";
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  Typography,
+  Stack,
+  Paper,
+  Box
+} from "@mui/material";
 import {
   CONTRACT_ADDRESS,
   REGISTRY_ADDRESS,
@@ -29,8 +39,7 @@ export function About({ onClose }: { onClose: () => void }) {
     runtime: {
       connected: isConnected,
       address,
-      detectedChainId: chainId,
-      userAgent: navigator.userAgent
+      chainId
     },
     addresses: {
       nftContract: CONTRACT_ADDRESS,
@@ -41,119 +50,124 @@ export function About({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.55)",
-        zIndex: 70,
-        display: "grid",
-        placeItems: "center"
-      }}
-    >
-      <div className="bg-white border rounded shadow max-w-2xl w-[92%] p-4 max-h-[80vh] overflow-y-auto">
-        <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold">About this build</h3>
-          <button className="px-2 py-1 border rounded" onClick={onClose}>
-            Close
-          </button>
-        </div>
-        <div className="grid md:grid-cols-2 gap-3 mt-3 text-sm">
-          <section className="space-y-1">
-            <div className="font-medium">Build Info</div>
-            <div>
-              <span className="opacity-60">Version:</span>{" "}
-              <span className="font-mono">{String(info.version)}</span>
-            </div>
-            <div>
-              <span className="opacity-60">Commit:</span>{" "}
-              <span className="font-mono">
-                {String(info.commit).slice(0, 7)}
-              </span>
-            </div>
-            <div>
-              <span className="opacity-60">Built:</span>{" "}
-              <span className="font-mono">{String(info.buildTime)}</span>
-            </div>
-          </section>
-          <section className="space-y-1">
-            <div className="font-medium">Runtime</div>
-            <div>
-              <span className="opacity-60">Connected:</span>{" "}
-              {info.runtime.connected ? "Yes" : "No"}
-            </div>
-            <div>
-              <span className="opacity-60">Address:</span>{" "}
-              <span className="font-mono break-all">
-                {info.runtime.address || "None"}
-              </span>
-            </div>
-            <div>
-              <span className="opacity-60">Chain ID:</span>{" "}
-              <span className="font-mono">
-                {String(info.runtime.detectedChainId || "")}
-              </span>
-            </div>
-          </section>
-        </div>
+    <Dialog open onClose={onClose} fullWidth maxWidth="md">
+      <DialogTitle>
+        <Typography variant="h6" fontWeight={800}>
+          About this dApp
+        </Typography>
+      </DialogTitle>
+      <DialogContent dividers>
+        {/* Build/Runtime summary cards */}
+        <Stack
+          direction={{ xs: "column", md: "row" }}
+          spacing={2}
+          alignItems="stretch"
+        >
+          <Paper variant="outlined" sx={{ p: 2, flex: 1 }}>
+            <Typography fontWeight={700}>Build Info</Typography>
+            <Stack spacing={0.5} mt={1}>
+              <Typography variant="body2">
+                Version: <strong>{String(info.version)}</strong>
+              </Typography>
+              <Typography variant="body2">
+                Commit: <strong>{String(info.commit).slice(0, 7)}</strong>
+              </Typography>
+              <Typography variant="body2">
+                Built: <strong>{String(info.buildTime)}</strong>
+              </Typography>
+            </Stack>
+          </Paper>
 
-        <div className="mt-4">
-          <div className="font-medium mb-2">Contract Addresses</div>
-          <div className="grid gap-1 text-xs">
+          <Paper variant="outlined" sx={{ p: 2, flex: 1 }}>
+            <Typography fontWeight={700}>Runtime</Typography>
+            <Stack spacing={0.5} mt={1}>
+              <Typography variant="body2">
+                Connected: <strong>{String(info.runtime.connected)}</strong>
+              </Typography>
+              <Typography variant="body2">
+                Address:{" "}
+                <span style={{ fontFamily: "monospace" }}>
+                  {String(info.runtime.address || "—")}
+                </span>
+              </Typography>
+              <Typography variant="body2">
+                Chain ID: <strong>{String(info.runtime.chainId)}</strong>
+              </Typography>
+            </Stack>
+          </Paper>
+        </Stack>
+
+        {/* Addresses */}
+        <Paper variant="outlined" sx={{ p: 2, mt: 2 }}>
+          <Typography fontWeight={700}>Contract Addresses</Typography>
+          <Box
+            sx={{
+              display: "grid",
+              gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
+              gap: 1,
+              mt: 1
+            }}
+          >
             <div>
-              <span className="opacity-60">NFT Contract:</span>{" "}
-              <span className="font-mono break-all">
+              <Typography variant="caption" color="text.secondary">
+                NFT Contract:
+              </Typography>
+              <Typography variant="body2" sx={{ fontFamily: "monospace" }}>
                 {info.addresses.nftContract}
-              </span>
+              </Typography>
             </div>
             <div>
-              <span className="opacity-60">Registry:</span>{" "}
-              <span className="font-mono break-all">
+              <Typography variant="caption" color="text.secondary">
+                Registry:
+              </Typography>
+              <Typography variant="body2" sx={{ fontFamily: "monospace" }}>
                 {info.addresses.registry}
-              </span>
+              </Typography>
             </div>
             <div>
-              <span className="opacity-60">Voting Pool:</span>{" "}
-              <span className="font-mono break-all">
+              <Typography variant="caption" color="text.secondary">
+                Voting Pool:
+              </Typography>
+              <Typography variant="body2" sx={{ fontFamily: "monospace" }}>
                 {info.addresses.votingPool}
-              </span>
+              </Typography>
             </div>
             <div>
-              <span className="opacity-60">Royalty Manager:</span>{" "}
-              <span className="font-mono break-all">
+              <Typography variant="caption" color="text.secondary">
+                Royalty Manager:
+              </Typography>
+              <Typography variant="body2" sx={{ fontFamily: "monospace" }}>
                 {info.addresses.royaltyManager}
-              </span>
+              </Typography>
             </div>
-          </div>
-        </div>
+          </Box>
+        </Paper>
 
-        <div className="mt-4">
-          <div className="font-medium mb-2">Network Configuration</div>
-          <div className="grid gap-1 text-xs">
-            <div>
-              <span className="opacity-60">Env Chain ID:</span>{" "}
-              <span className="font-mono">
-                {String(info.env.VITE_CHAIN_ID || "")}
-              </span>
-            </div>
-            <div>
-              <span className="opacity-60">RPC URL:</span>{" "}
-              <span className="font-mono break-all">
-                {String(info.env.VITE_RPC_URL || "")}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <details className="mt-3">
-          <summary className="cursor-pointer font-medium">
-            Full Environment Snapshot
-          </summary>
-          <pre className="mt-2 bg-gray-50 p-2 rounded overflow-auto text-xs max-h-40">
+        {/* Environment snapshot */}
+        <Paper variant="outlined" sx={{ p: 2, mt: 2 }}>
+          <Typography fontWeight={700}>Network Configuration</Typography>
+          <Box
+            component="pre"
+            sx={{
+              m: 0,
+              mt: 1,
+              bgcolor: "grey.50",
+              p: 1,
+              borderRadius: 1,
+              maxHeight: 260,
+              overflow: "auto",
+              fontFamily:
+                "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
+              fontSize: "0.75rem"
+            }}
+          >
             {JSON.stringify(info.env, null, 2)}
-          </pre>
-        </details>
-      </div>
-    </div>
+          </Box>
+        </Paper>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>Close</Button>
+      </DialogActions>
+    </Dialog>
   );
 }

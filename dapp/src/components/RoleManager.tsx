@@ -1,8 +1,21 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useAccount, useReadContract, useWriteContract } from "wagmi";
 import { ABI, CONTRACT_ADDRESS } from "../config/contract";
 import { useToast } from "../lib/toast";
 import { isAddress, getAddress } from "viem";
+
+import {
+  Card,
+  CardHeader,
+  CardContent,
+  Typography,
+  Stack,
+  Select,
+  MenuItem,
+  TextField,
+  Button,
+  Chip
+} from "@mui/material";
 
 export function RoleManager() {
   const { address } = useAccount();
@@ -21,16 +34,13 @@ export function RoleManager() {
   const [checkAddr, setCheckAddr] = useState("");
   const [checkRes, setCheckRes] = useState<boolean | null>(null);
 
-  // Check admin status
   const { data: isAdminResult } = useReadContract({
     address: CONTRACT_ADDRESS,
     abi: ABI,
     functionName: "isAdmin",
     args:
       checkAddr && isAddress(checkAddr) ? [getAddress(checkAddr)] : undefined,
-    query: {
-      enabled: Boolean(checkAddr && isAddress(checkAddr))
-    }
+    query: { enabled: Boolean(checkAddr && isAddress(checkAddr)) }
   });
 
   useEffect(() => {
@@ -72,64 +82,77 @@ export function RoleManager() {
   }
 
   return (
-    <section className="space-y-3 border rounded p-4">
-      <div className="font-semibold">Role Manager (Owner-only)</div>
-      <div className="text-xs opacity-70">
-        Owner: <span className="font-mono">{String(ownerAddr)}</span>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2">
-        <select
-          className="border rounded p-1"
-          value={mode}
-          onChange={(e) => setMode(e.target.value as any)}
-        >
-          <option value="grant">Grant admin</option>
-          <option value="revoke">Revoke admin</option>
-        </select>
-        <input
-          className="border rounded p-2 min-w-[340px]"
-          placeholder="0xAdminAddress"
-          value={target}
-          onChange={(e) => setTarget(e.target.value)}
-        />
-        <button
-          className="px-3 py-1 border rounded"
-          disabled={!isOwner || isPending}
-          onClick={submit}
-        >
-          {isPending ? "Sending…" : "Submit"}
-        </button>
-      </div>
-
-      {/* Admin Status Checker */}
-      <div className="space-y-2 pt-2 border-t">
-        <div className="font-medium">Check Admin Status</div>
-        <div className="flex gap-2 items-center">
-          <input
-            className="border rounded p-2 flex-1"
-            placeholder="0xAddressToCheck"
-            value={checkAddr}
-            onChange={(e) => setCheckAddr(e.target.value)}
-          />
-          {checkRes !== null && (
-            <span
-              className={`px-2 py-1 rounded text-xs ${
-                checkRes
-                  ? "bg-green-100 text-green-800"
-                  : "bg-red-100 text-red-800"
-              }`}
+    <Card variant="outlined">
+      <CardHeader
+        title={
+          <Typography fontWeight={800}>Role Manager (Owner-only)</Typography>
+        }
+        subheader={
+          <Typography variant="caption" color="text.secondary">
+            Owner:{" "}
+            <span style={{ fontFamily: "monospace" }}>{String(ownerAddr)}</span>
+          </Typography>
+        }
+      />
+      <CardContent>
+        <Stack spacing={2}>
+          <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+            <Select
+              value={mode}
+              onChange={(e) => setMode(e.target.value as any)}
+              size="small"
+              sx={{ width: 180 }}
             >
-              {checkRes ? "Admin" : "Not Admin"}
-            </span>
-          )}
-        </div>
-      </div>
+              <MenuItem value="grant">Grant admin</MenuItem>
+              <MenuItem value="revoke">Revoke admin</MenuItem>
+            </Select>
+            <TextField
+              label="0xAdminAddress"
+              value={target}
+              onChange={(e) => setTarget(e.target.value)}
+              sx={{ minWidth: 320, flex: 1 }}
+            />
+            <Button
+              variant="contained"
+              disabled={!isOwner || isPending}
+              onClick={submit}
+            >
+              {isPending ? "Sending…" : "Submit"}
+            </Button>
+          </Stack>
 
-      <div className="text-xs opacity-70">
-        Tip: only the contract owner can change admin roles. Admins can use the
-        Admin Panel but cannot grant other admins.
-      </div>
-    </section>
+          <Stack
+            spacing={1}
+            sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2 }}
+          >
+            <Typography fontWeight={700}>Check Admin Status</Typography>
+            <Stack
+              direction={{ xs: "column", sm: "row" }}
+              spacing={2}
+              alignItems="center"
+            >
+              <TextField
+                label="0xAddressToCheck"
+                value={checkAddr}
+                onChange={(e) => setCheckAddr(e.target.value)}
+                sx={{ flex: 1 }}
+              />
+              {checkRes !== null && (
+                <Chip
+                  size="small"
+                  color={checkRes ? "success" : "error"}
+                  variant="outlined"
+                  label={checkRes ? "Admin" : "Not Admin"}
+                />
+              )}
+            </Stack>
+            <Typography variant="caption" color="text.secondary">
+              Tip: only the contract owner can change admin roles. Admins can
+              use the Admin Panel but cannot grant other admins.
+            </Typography>
+          </Stack>
+        </Stack>
+      </CardContent>
+    </Card>
   );
 }

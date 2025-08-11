@@ -8,7 +8,20 @@ import {
   REGISTRY_ADDRESS,
   VOTING_POOL_ADDRESS
 } from "../config/contract";
-import { isAddress, defineChain, createPublicClient, http } from "viem";
+import { defineChain, createPublicClient, http, isAddress } from "viem";
+import {
+  Card,
+  CardHeader,
+  CardContent,
+  Chip,
+  Collapse,
+  IconButton,
+  Stack,
+  Typography,
+  Tooltip
+} from "@mui/material";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 
 type Check = { label: string; ok: boolean | null; detail?: string };
 
@@ -87,7 +100,6 @@ export function QuickstartChecklist() {
         detail: isConnected ? String(address) : "not connected"
       });
 
-      // RPC reachable
       try {
         const chain = defineChain({
           id: Number(env.chainId || 0),
@@ -113,7 +125,6 @@ export function QuickstartChecklist() {
         });
       }
 
-      // Contracts
       try {
         const ts = (await readContract(config, {
           address: CONTRACT_ADDRESS,
@@ -205,68 +216,91 @@ export function QuickstartChecklist() {
   );
 
   return (
-    <section className="border rounded p-4 bg-white">
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <div className="font-semibold">Quickstart Checklist</div>
-          {loading ? (
-            <div className="text-xs opacity-70">Checking…</div>
-          ) : allGood ? (
-            <div className="text-xs text-green-600 font-medium">
-              ✅ All systems ready
-            </div>
-          ) : hasErrors ? (
-            <div className="text-xs text-yellow-700 font-medium">
-              ⚠ Issues detected
-            </div>
-          ) : (
-            <div className="text-xs text-gray-600 font-medium">
-              ⏳ Partial setup
-            </div>
-          )}
-          {!loading && (
-            <div className="text-xs text-gray-500">
-              ({okCount}/{checks.length})
-            </div>
-          )}
-        </div>
-        <button
-          className="text-xs underline"
-          onClick={() => setOpen((v) => !v)}
-        >
-          {open ? "Hide details" : "Show details"}
-        </button>
-      </div>
-
-      {open && (
-        <>
-          <div className="mt-3 grid gap-1 text-sm">
+    <Card variant="outlined">
+      <CardHeader
+        title={
+          <Stack direction="row" alignItems="center" spacing={1}>
+            <Typography variant="h6" fontWeight={700}>
+              Quickstart Checklist
+            </Typography>
+            <Chip
+              size="small"
+              color={
+                loading
+                  ? "default"
+                  : allGood
+                  ? "success"
+                  : hasErrors
+                  ? "warning"
+                  : "default"
+              }
+              label={
+                loading
+                  ? "Checking…"
+                  : allGood
+                  ? "All systems ready"
+                  : hasErrors
+                  ? "Issues detected"
+                  : "Partial"
+              }
+              variant={allGood ? "filled" : "outlined"}
+            />
+            {!loading && (
+              <Typography variant="caption" color="text.secondary">
+                ({okCount}/{checks.length})
+              </Typography>
+            )}
+          </Stack>
+        }
+        action={
+          <Tooltip title={open ? "Hide details" : "Show details"}>
+            <IconButton onClick={() => setOpen((v) => !v)} size="small">
+              {open ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+            </IconButton>
+          </Tooltip>
+        }
+      />
+      <Collapse in={open} timeout="auto" unmountOnExit>
+        <CardContent>
+          <Stack spacing={1}>
             {checks.map((c, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <span className="text-xs">
+              <Stack key={i} direction="row" spacing={1} alignItems="center">
+                <Typography variant="body2">
                   {c.ok === true ? "✅" : c.ok === false ? "❌" : "⏳"}
-                </span>
-                <span className="min-w-0 flex-1 font-medium">{c.label}</span>
-                <span className="text-xs opacity-70 break-all max-w-xs">
+                </Typography>
+                <Typography variant="body2" fontWeight={600} sx={{ flex: 1 }}>
+                  {c.label}
+                </Typography>
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  sx={{ wordBreak: "break-all", maxWidth: 360 }}
+                >
                   {c.detail}
-                </span>
-              </div>
+                </Typography>
+              </Stack>
             ))}
-          </div>
+          </Stack>
 
           {hasErrors && (
-            <div className="text-xs opacity-70 pt-2 border-t mt-3">
-              <div className="font-medium mb-1">Fix issues:</div>
-              <div>• Update .env with correct contract addresses</div>
-              <div>
+            <Stack spacing={0.5} mt={2}>
+              <Typography variant="subtitle2">Fix issues:</Typography>
+              <Typography variant="caption">
+                • Update .env with correct contract addresses
+              </Typography>
+              <Typography variant="caption">
                 • Ensure you’re on the right network (check VITE_CHAIN_ID)
-              </div>
-              <div>• Deploy contracts if they don’t exist</div>
-              <div>• Check RPC endpoint connectivity</div>
-            </div>
+              </Typography>
+              <Typography variant="caption">
+                • Deploy contracts if they don’t exist
+              </Typography>
+              <Typography variant="caption">
+                • Check RPC endpoint connectivity
+              </Typography>
+            </Stack>
           )}
-        </>
-      )}
-    </section>
+        </CardContent>
+      </Collapse>
+    </Card>
   );
 }
