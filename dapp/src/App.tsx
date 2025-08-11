@@ -9,28 +9,57 @@ import { AdminPanel } from "./components/AdminPanel";
 import { RoleManager } from "./components/RoleManager";
 import { QuickstartChecklist } from "./components/QuickstartChecklist";
 import { AuditLog } from "./components/AuditLog";
+import { VotingInterface } from "./components/VotingInterface";
+import { ForkCreator } from "./components/ForkCreator";
 import { ToastShelf } from "./lib/toast";
 import { CHAINS } from "./config/wallet";
 import { ConnectStorageButton } from "./components/ConnectStorageButton";
-// If you actually have an About component, keep this import. If not, remove the JSX that uses <About/>.
-// import { About } from "./components/About"
+import { About } from "./components/About";
 
 export default function App() {
   const [showAbout, setShowAbout] = React.useState(false);
   const [showTour, setShowTour] = React.useState(false);
+  const [selectedTokenId, setSelectedTokenId] = React.useState<number | null>(
+    null
+  );
+  const [showVoting, setShowVoting] = React.useState(false);
+  const [showForkCreator, setShowForkCreator] = React.useState(false);
+  const [forkParentId, setForkParentId] = React.useState<number | null>(null);
 
   React.useEffect(() => {
     const handleOpenAbout = () => setShowAbout(true);
     const handleStartTour = () => setShowTour(true);
 
+    // Handle custom events from Gallery for voting
+    const handleVoteToken = (e: CustomEvent) => {
+      setSelectedTokenId(e.detail.tokenId);
+      setShowVoting(true);
+    };
+
+    // Handle custom events for fork creation
+    const handleCreateFork = (e: CustomEvent) => {
+      setForkParentId(e.detail.parentId);
+      setShowForkCreator(true);
+    };
+
     window.addEventListener("open-about", handleOpenAbout);
     window.addEventListener("start-tour", handleStartTour);
+    window.addEventListener("vote-token", handleVoteToken as EventListener);
+    window.addEventListener("create-fork", handleCreateFork as EventListener);
 
     if (!localStorage.getItem("tourSeen")) setShowTour(true);
 
     return () => {
       window.removeEventListener("open-about", handleOpenAbout);
       window.removeEventListener("start-tour", handleStartTour);
+      window.removeEventListener(
+        "vote-token",
+        handleVoteToken as EventListener
+      );
+      window.removeEventListener(
+        "create-fork",
+        handleCreateFork as EventListener
+      );
     };
   }, []);
 
@@ -38,6 +67,24 @@ export default function App() {
   const { connectors, connect, status, error } = useConnect();
   const { disconnect } = useDisconnect();
   const { chains, switchChain } = useSwitchChain({ chains: CHAINS });
+
+  const handleTokenSelect = (tokenId: number) => {
+    setSelectedTokenId(tokenId);
+    setShowVoting(true);
+  };
+
+  const handleCreateFork = (parentId: number) => {
+    setForkParentId(parentId);
+    setShowForkCreator(true);
+  };
+
+  const handleViewContent = (tokenId: number) => {
+    // Scroll to gallery section
+    const gallerySection = document.querySelector("#gallery");
+    if (gallerySection) {
+      gallerySection.scrollIntoView({ behavior: "smooth" });
+    }
+  };
 
   return (
     <div className="min-h-screen p-6 max-w-5xl mx-auto">
@@ -107,7 +154,7 @@ export default function App() {
           <button
             id="start-tour-btn"
             className="text-sm underline"
-            onClick={() => setShowTour(true)} // also allow direct click
+            onClick={() => setShowTour(true)}
           >
             Start Tour
           </button>
@@ -118,7 +165,7 @@ export default function App() {
           <button
             id="about-btn"
             className="text-sm underline"
-            onClick={() => setShowAbout(true)} // wire the About toggle
+            onClick={() => setShowAbout(true)}
           >
             About
           </button>
@@ -221,10 +268,35 @@ export default function App() {
         <div className="md:col-span-2">
           <QuickstartChecklist />
         </div>
+
+        {/* Quick Actions for new features */}
+        <div className="md:col-span-2 flex gap-4 flex-wrap">
+          <button
+            onClick={() => setShowForkCreator(true)}
+            className="px-4 py-2 border rounded font-medium bg-blue-50 hover:bg-blue-100"
+          >
+            ✨ Create New Content
+          </button>
+          <button
+            onClick={() => setShowVoting(true)}
+            className="px-4 py-2 border rounded font-medium bg-purple-50 hover:bg-purple-100"
+            disabled={!selectedTokenId}
+          >
+            💎 Vote on Selected Content{" "}
+            {selectedTokenId && `#${selectedTokenId}`}
+          </button>
+        </div>
+
         <Create />
-        <Gallery />
+        <div id="gallery">
+          <Gallery />
+        </div>
         <div className="md:col-span-2">
-          <ForkExplorer />
+          <ForkExplorer
+            onForkSelect={handleTokenSelect}
+            onCreateFork={handleCreateFork}
+            onViewContent={handleViewContent}
+          />
         </div>
         <div className="md:col-span-2">
           <AdminPanel />
@@ -271,8 +343,54 @@ export default function App() {
         />
       </main>
 
-      {/* If you actually have an <About/> component, keep this; else remove it. */}
-      {/* {showAbout && <About onClose={() => setShowAbout(false)} />} */}
+      {/* Voting Interface Modal */}
+      {showVoting && selectedTokenId && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold">
+                Vote for Content #{selectedTokenId}
+              </h2>
+              <button
+                onClick={() => setShowVoting(false)}
+                className="px-3 py-1 border rounded"
+              >
+                ×
+              </button>
+            </div>
+            <VotingInterface
+              tokenId={selectedTokenId}
+              onVoteSuccess={() => {
+                setShowVoting(false);
+                setSelectedTokenId(null);
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Fork Creator Modal */}
+      {showForkCreator && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <ForkCreator
+              parentTokenId={forkParentId || undefined}
+              onSuccess={(tokenId) => {
+                setShowForkCreator(false);
+                setForkParentId(null);
+                // Refresh the page to show new content
+                window.location.reload();
+              }}
+              onClose={() => {
+                setShowForkCreator(false);
+                setForkParentId(null);
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {showAbout && <About onClose={() => setShowAbout(false)} />}
 
       {showTour && (
         <Tour

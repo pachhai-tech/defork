@@ -7,7 +7,7 @@ import { decodeEventLog, isAddress, zeroAddress, type Log } from "viem";
 import { uploadJSON, uploadBlob } from "../lib/ipfs";
 import { isImageSafe } from "../lib/nsfw";
 import { nowUnix, sha256Blob, sha256Text } from "../lib/utils";
-import { useToast } from '../lib/toast'
+import { useToast } from "../lib/toast";
 
 import { useState, useRef, DragEvent, useEffect } from "react";
 import { AIText } from "./AIText";
@@ -15,7 +15,7 @@ import { AIImage } from "./AIImage";
 
 export function Create() {
   const { address, isConnected } = useAccount();
-  const { writeContractAsync, isPending } = useWriteContract();
+  const { writeContract, isPending } = useWriteContract();
   const { push } = useToast();
 
   const [title, setTitle] = useState("");
@@ -91,176 +91,208 @@ export function Create() {
       return;
     }
     if (!title) {
-      push({ kind: "error", message: "Title required" });
+      push({ kind: "error", message: "Title is required" });
       return;
     }
 
-    let imageUri = "";
-    let contentUri = "";
-    let contentHash = "";
-
-    // ----- Upload content -----
-    push({ kind: "info", title: "Uploading", message: "Preparing content…" });
-    if (contentType === "TEXT") {
-      const body = text || desc || "";
-      contentHash = await sha256Text(body);
-      const txt = new Blob([body], { type: "text/plain" });
-      contentUri = await uploadBlob(txt, "content.txt", "text/plain");
-    } else {
-      if (!imageBlob) {
-        push({ kind: "error", message: "Generate or upload an image first" });
-        return;
-      }
-      // NSFW check (client-side)
-      const verdict = await isImageSafe(imageBlob);
-      if (!verdict.safe) {
-        console.warn("NSFW scores", verdict.scores);
-        push({ kind: "error", message: "Blocked: NSFW image detected." });
-        return;
-      }
-      contentHash = await sha256Blob(imageBlob);
-      imageUri = await uploadBlob(
-        imageBlob,
-        "image.png",
-        imageBlob.type || "image/png"
-      );
-    }
-
-    const meta: any = {
-      name: title,
-      description: desc,
-      image: imageUri || undefined,
-      // for text content, attach as animation_url (common metadata field for non-image content)
-      animation_url: contentType === "TEXT" ? contentUri : undefined,
-      contentType: contentType === "TEXT" ? "text/plain" : "image/png",
-      contributionType: contrib.toLowerCase(),
-      model: modelId ? { id: modelId, version: "1.0" } : null,
-      contentHash,
-      parentTokenId: parentTokenId ? Number(parentTokenId) : undefined,
-      hidden: !!hidden,
-      timestamp: nowUnix()
-    };
-
-    push({
-      kind: "info",
-      title: "Uploading",
-      message: "Uploading metadata to IPFS…"
-    });
-    const metadataUri = await uploadJSON(meta);
-
-    const royaltyRecv = isAddress(royaltyReceiver)
-      ? royaltyReceiver
-      : zeroAddress;
-    const royalty = Number(royaltyBps) || 0;
-
-    const cType = contentType === "TEXT" ? 0 : 1; // StoryForkNFT.ContentType
-    const kType = contrib === "HUMAN" ? 0 : contrib === "AI" ? 1 : 2; // StoryForkNFT.ContributionType
-
-    // ----- Send tx -----
-    push({ kind: "info", title: "Minting", message: "Sending transaction…" });
-    const txHash = await writeContractAsync({
-      address: CONTRACT_ADDRESS,
-      abi: ABI,
-      functionName: "mint",
-      args: [
-        address!, // to
-        metadataUri, // tokenURI (ipfs://...)
-        royaltyRecv, // royaltyReceiver (0 = use default)
-        royalty, // royaltyBps (0 = use default)
-        cType, // ContentType enum
-        kType, // ContributionType enum
-        modelId || "" // model id ("" if human)
-      ],
-      account: address
-    });
-
-    // Wait for receipt and extract tokenId from events
-    const receipt = await waitForTransactionReceipt(config, { hash: txHash });
-    let mintedTokenId: bigint | null = null;
-
-    for (const log of receipt.logs as Log[]) {
-      if (log.address.toLowerCase() !== CONTRACT_ADDRESS.toLowerCase())
-        continue;
-      try {
-        // Prefer project event
-        const dec = decodeEventLog({
-          abi: ABI,
-          data: log.data,
-          topics: log.topics,
-          // Try specific event first; if it fails, catch and try Transfer below.
-          eventName: "GenesisCreated"
-        });
-        if (dec?.eventName === "GenesisCreated") {
-          mintedTokenId = dec.args.tokenId as bigint;
-          break;
-        }
-      } catch {}
-      try {
-        // Fallback to ERC-721 Transfer(from=0x0,to=address,tokenId)
-        const dec = decodeEventLog({
-          abi: ABI,
-          data: log.data,
-          topics: log.topics,
-          eventName: "Transfer"
-        });
-        if (
-          dec?.eventName === "Transfer" &&
-          (dec.args?.from as string)?.toLowerCase() ===
-            "0x0000000000000000000000000000000000000000"
-        ) {
-          mintedTokenId = dec.args.tokenId as bigint;
-          break;
-        }
-      } catch {}
-    }
-
-    // Save a little breadcrumb for Gallery (optional)
-    try {
-      const chainId = Number(import.meta.env.VITE_CHAIN_ID);
-      const arr = JSON.parse(localStorage.getItem("mintTxs") || "[]");
-      arr.push({
-        tokenId: mintedTokenId ? Number(mintedTokenId) : null,
-        hash: txHash,
-        chainId
+    const isText = contentType === "TEXT";
+    const content = isText ? text : imageBlob;
+    if (!content) {
+      push({
+        kind: "error",
+        message: `${isText ? "Text" : "Image"} content is required`
       });
-      localStorage.setItem("mintTxs", JSON.stringify(arr));
-    } catch (e) {
-      console.warn("tx save error", e);
+      return;
     }
 
-    push({
-      kind: "success",
-      title: "Minted",
-      message:
-        mintedTokenId != null
-          ? `Token #${mintedTokenId}`
-          : `Tx ${txHash.slice(0, 10)}…`
-    });
-    alert(
-      mintedTokenId != null
-        ? `Minted token #${mintedTokenId}`
-        : `Minted. Tx: ${txHash}`
-    );
+    // NSFW check for images
+    if (!isText && imageBlob) {
+      const safe = await isImageSafe(imageBlob);
+      if (!safe) {
+        push({
+          kind: "error",
+          message: "Image flagged by NSFW filter"
+        });
+        return;
+      }
+    }
+
+    try {
+      push({
+        kind: "info",
+        title: "Processing",
+        message: "Preparing content..."
+      });
+
+      // Upload content and compute hash
+      let contentUri = "";
+      let contentHash = "";
+
+      if (isText) {
+        contentHash = await sha256Text(text);
+        // For text, we can embed it in metadata or upload separately
+        const textBlob = new Blob([text], { type: "text/plain" });
+        contentUri = await uploadBlob(textBlob, `content_${Date.now()}.txt`);
+      } else {
+        contentHash = await sha256Blob(imageBlob!);
+        contentUri = await uploadBlob(imageBlob!, `image_${Date.now()}.png`);
+      }
+
+      // Build metadata
+      const meta = {
+        name: title,
+        description: desc || (isText ? text.slice(0, 200) + "..." : ""),
+        image: !isText ? contentUri : undefined,
+        contentURI: isText ? contentUri : undefined,
+        contentType: isText ? "text/plain" : "image/png",
+        contributionType: contrib.toLowerCase(),
+        model: modelId ? { id: modelId, version: "1.0" } : null,
+        contentHash,
+        parentTokenId: parentTokenId ? Number(parentTokenId) : undefined,
+        hidden: !!hidden,
+        timestamp: nowUnix()
+      };
+
+      push({
+        kind: "info",
+        title: "Uploading",
+        message: "Uploading metadata to IPFS…"
+      });
+      const metadataUri = await uploadJSON(meta);
+
+      const royaltyRecv = isAddress(royaltyReceiver)
+        ? royaltyReceiver
+        : zeroAddress;
+      const royalty = BigInt(Number(royaltyBps) || 0); // Convert to BigInt
+
+      const cType = contentType === "TEXT" ? 0 : 1; // StoryForkNFT.ContentType
+      const kType = contrib === "HUMAN" ? 0 : contrib === "AI" ? 1 : 2; // StoryForkNFT.ContributionType
+
+      // ----- Send tx -----
+      push({ kind: "info", title: "Minting", message: "Sending transaction…" });
+
+      const result = await new Promise<`0x${string}`>((resolve, reject) => {
+        writeContract(
+          {
+            address: CONTRACT_ADDRESS,
+            abi: ABI,
+            functionName: "mint",
+            args: [
+              address!, // to
+              metadataUri, // tokenURI (ipfs://...)
+              royaltyRecv, // royaltyReceiver (0 = use default)
+              royalty, // royaltyBps as BigInt
+              cType,
+              kType,
+              modelId || "" // model id ("" if human)
+            ]
+          },
+          {
+            onSuccess: (hash) => resolve(hash),
+            onError: (error) => reject(error)
+          }
+        );
+      });
+
+      const txHash = result;
+
+      // Wait for receipt and extract tokenId from events
+      const receipt = await waitForTransactionReceipt(config, { hash: txHash });
+      let mintedTokenId: bigint | null = null;
+
+      for (const log of receipt.logs as Log[]) {
+        if (log.address.toLowerCase() !== CONTRACT_ADDRESS.toLowerCase())
+          continue;
+        try {
+          // Prefer project event
+          const dec = decodeEventLog({
+            abi: ABI,
+            data: log.data,
+            topics: log.topics,
+            // Try specific event first; if it fails, catch and try Transfer below.
+            eventName: "GenesisCreated"
+          });
+          if (dec?.eventName === "GenesisCreated") {
+            mintedTokenId = dec.args.tokenId as bigint;
+            break;
+          }
+        } catch {}
+        try {
+          // Fallback to ERC-721 Transfer(from=0x0,to=address,tokenId)
+          const dec = decodeEventLog({
+            abi: ABI,
+            data: log.data,
+            topics: log.topics,
+            eventName: "Transfer"
+          });
+          if (
+            dec?.eventName === "Transfer" &&
+            (dec.args?.from as string)?.toLowerCase() ===
+              "0x0000000000000000000000000000000000000000"
+          ) {
+            mintedTokenId = dec.args.tokenId as bigint;
+            break;
+          }
+        } catch {}
+      }
+
+      // Save a little breadcrumb for Gallery (optional)
+      try {
+        const chainId = Number(import.meta.env.VITE_CHAIN_ID);
+        const arr = JSON.parse(localStorage.getItem("mintTxs") || "[]");
+        arr.push({
+          tokenId: mintedTokenId ? Number(mintedTokenId) : null,
+          hash: txHash,
+          chainId
+        });
+        localStorage.setItem("mintTxs", JSON.stringify(arr));
+      } catch (e) {
+        console.warn("tx save error", e);
+      }
+
+      push({
+        kind: "success",
+        title: "Minted",
+        message: `NFT #${mintedTokenId} created successfully!`
+      });
+
+      // Reset form
+      setTitle("");
+      setDesc("");
+      setText("");
+      setImageBlob(null);
+      setParentTokenId("");
+      setHidden(false);
+      setModelId("");
+      setRoyaltyReceiver("");
+      setRoyaltyBps(500);
+    } catch (e: any) {
+      push({
+        kind: "error",
+        title: "Mint Failed",
+        message: e?.message || "Transaction failed"
+      });
+    }
   }
 
   return (
     <section className="space-y-4">
       <h2 className="font-semibold text-lg">Create / Mint</h2>
-      <div className="grid gap-3">
+      <div className="space-y-3">
         <input
-          className="border rounded p-2"
-          placeholder="Title"
+          className="border rounded p-2 w-full"
+          placeholder="Title (required)"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
         />
         <textarea
-          className="border rounded p-2"
+          className="border rounded p-2 w-full"
           rows={3}
-          placeholder="Description"
+          placeholder="Description (optional)"
           value={desc}
           onChange={(e) => setDesc(e.target.value)}
         />
-        <div className="grid md:grid-cols-2 gap-2">
+        <div className="flex gap-3 flex-wrap">
           <input
             className="border rounded p-2"
             placeholder="Parent Token ID (optional)"
@@ -313,7 +345,7 @@ export function Create() {
         {contentType === "TEXT" ? (
           <>
             <textarea
-              className="border rounded p-2"
+              className="border rounded p-2 w-full"
               rows={8}
               placeholder="Paste or write your text..."
               value={text}
@@ -356,14 +388,14 @@ export function Create() {
           />
         </div>
         <input
-          className="border rounded p-2"
+          className="border rounded p-2 w-full"
           placeholder="Royalty Receiver (0x... or blank for default)"
           value={royaltyReceiver}
           onChange={(e) => setRoyaltyReceiver(e.target.value)}
         />
 
         <button
-          className="px-4 py-2 border rounded font-medium"
+          className="px-4 py-2 border rounded font-medium w-full"
           disabled={isPending}
           onClick={mint}
         >

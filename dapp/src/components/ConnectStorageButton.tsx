@@ -17,7 +17,7 @@ export function ConnectStorageButton() {
           "Enter your email to connect Storacha (magic link):"
         );
         if (!email) throw new Error("Email required");
-        await client.login(email); // user clicks magic link in email
+        await client.login(email as Storacha.Account.EmailAddress); // user clicks magic link in email
         const space = await client.createSpace("defork");
         await client.setCurrentSpace(space.did());
         setDid(space.did());

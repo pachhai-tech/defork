@@ -2,8 +2,12 @@ import { useEffect, useState } from "react";
 import { useAccount } from "wagmi";
 import { readContract } from "@wagmi/core";
 import { config } from "../config/wallet";
-import { ABI, CONTRACT_ADDRESS } from "../config/contract";
-import { REGISTRY_ADDRESS } from "../config/registry";
+import {
+  ABI,
+  CONTRACT_ADDRESS,
+  REGISTRY_ADDRESS,
+  VOTING_POOL_ADDRESS
+} from "../config/contract";
 import {
   isAddress,
   getAddress,
@@ -28,10 +32,15 @@ export function QuickstartChecklist() {
       const env = {
         chainId: import.meta.env.VITE_CHAIN_ID,
         rpc: import.meta.env.VITE_RPC_URL,
-        nft: import.meta.env.VITE_CONTRACT_ADDRESS,
+        nft: import.meta.env.VITE_NFT_ADDRESS,
         reg: import.meta.env.VITE_REGISTRY_ADDRESS,
+        voting: import.meta.env.VITE_VOTING_POOL_ADDRESS,
+        royalty: import.meta.env.VITE_ROYALTY_MANAGER_ADDRESS,
+        usdc: import.meta.env.VITE_USDC_ADDRESS,
+        weth: import.meta.env.VITE_WETH_ADDRESS,
         wc: import.meta.env.VITE_WALLETCONNECT_PROJECT_ID
       };
+
       list.push({
         label: ".env: VITE_CHAIN_ID",
         ok: !!env.chainId,
@@ -43,7 +52,7 @@ export function QuickstartChecklist() {
         detail: env.rpc || ""
       });
       list.push({
-        label: ".env: VITE_CONTRACT_ADDRESS",
+        label: ".env: VITE_NFT_ADDRESS",
         ok: !!env.nft && isAddress(env.nft),
         detail: env.nft || ""
       });
@@ -51,6 +60,26 @@ export function QuickstartChecklist() {
         label: ".env: VITE_REGISTRY_ADDRESS",
         ok: !!env.reg && isAddress(env.reg),
         detail: env.reg || ""
+      });
+      list.push({
+        label: ".env: VITE_VOTING_POOL_ADDRESS",
+        ok: !!env.voting && isAddress(env.voting),
+        detail: env.voting || ""
+      });
+      list.push({
+        label: ".env: VITE_ROYALTY_MANAGER_ADDRESS",
+        ok: !!env.royalty && isAddress(env.royalty),
+        detail: env.royalty || ""
+      });
+      list.push({
+        label: ".env: VITE_USDC_ADDRESS",
+        ok: !!env.usdc && isAddress(env.usdc),
+        detail: env.usdc || ""
+      });
+      list.push({
+        label: ".env: VITE_WETH_ADDRESS",
+        ok: !!env.weth && isAddress(env.weth),
+        detail: env.weth || ""
       });
       list.push({
         label: ".env: VITE_WALLETCONNECT_PROJECT_ID",
@@ -99,95 +128,140 @@ export function QuickstartChecklist() {
           functionName: "totalSupply"
         })) as bigint;
         list.push({
-          label: "Contract reachable",
+          label: "NFT Contract reachable",
           ok: true,
           detail: `totalSupply=${ts.toString()}`
         });
       } catch (e: any) {
         list.push({
-          label: "Contract reachable",
+          label: "NFT Contract reachable",
           ok: false,
-          detail: e?.shortMessage || e?.message || "read failed"
+          detail: e?.message || "failed"
         });
       }
 
-      // 5) W3UP storage (browser) – space connected?
+      // 5) Registry contract check
       try {
-        const Storacha = await import("@storacha/client");
-        const client = await Storacha.create();
-        const spaces = await client.spaces();
-        if (spaces.length > 0) {
-          await client.setCurrentSpace(spaces[0].did());
-          list.push({
-            label: "Storacha storage connected",
-            ok: true,
-            detail: spaces[0].did()
-          });
-        } else {
-          list.push({
-            label: "Storacha storage connected",
-            ok: false,
-            detail: "no space; click “Connect storage”"
-          });
-        }
+        const parent = (await readContract(config, {
+          address: REGISTRY_ADDRESS,
+          abi: [
+            {
+              type: "function",
+              name: "parentOf",
+              stateMutability: "view",
+              inputs: [{ name: "tokenId", type: "uint256" }],
+              outputs: [{ type: "uint256" }]
+            }
+          ],
+          functionName: "parentOf",
+          args: [BigInt(1)]
+        })) as bigint;
+        list.push({
+          label: "Registry Contract reachable",
+          ok: true,
+          detail: `parentOf(1)=${parent.toString()}`
+        });
       } catch (e: any) {
         list.push({
-          label: "Storacha storage connected",
+          label: "Registry Contract reachable",
           ok: false,
-          detail: e?.message || "init failed"
+          detail: e?.message || "failed"
         });
       }
 
-      // 6) Registry address sanity
-      list.push({
-        label: "Registry address format",
-        ok: isAddress(REGISTRY_ADDRESS),
-        detail: isAddress(REGISTRY_ADDRESS)
-          ? getAddress(REGISTRY_ADDRESS)
-          : "invalid"
-      });
+      // 6) Voting pool contract check
+      try {
+        const stats = (await readContract(config, {
+          address: VOTING_POOL_ADDRESS,
+          abi: [
+            {
+              type: "function",
+              name: "getTokenStats",
+              stateMutability: "view",
+              inputs: [{ name: "tokenId", type: "uint256" }],
+              outputs: [
+                { name: "votes", type: "uint256" },
+                { name: "totalValue", type: "uint256" }
+              ]
+            }
+          ],
+          functionName: "getTokenStats",
+          args: [BigInt(1)]
+        })) as [bigint, bigint];
+        list.push({
+          label: "Voting Pool Contract reachable",
+          ok: true,
+          detail: `token1 votes=${stats[0].toString()}`
+        });
+      } catch (e: any) {
+        list.push({
+          label: "Voting Pool Contract reachable",
+          ok: false,
+          detail: e?.message || "failed"
+        });
+      }
 
       setChecks(list);
       setLoading(false);
     })();
   }, [address, isConnected]);
 
+  const allGood = checks.every((c) => c.ok === true);
+  const hasErrors = checks.some((c) => c.ok === false);
+
   return (
-    <section className="border rounded p-4 bg-white shadow space-y-2">
-      <div className="flex items-center justify-between">
+    <section className="space-y-3 border rounded p-4">
+      <div className="flex items-center gap-2">
         <div className="font-semibold">Quickstart Checklist</div>
-        <button
-          className="px-3 py-1 border rounded text-sm"
-          onClick={() => location.reload()}
-        >
-          {loading ? "Checking…" : "Re-run checks"}
-        </button>
+        {loading ? (
+          <div className="text-xs opacity-70">Checking...</div>
+        ) : allGood ? (
+          <div className="text-xs text-green-600 font-medium">
+            ✅ All systems ready!
+          </div>
+        ) : hasErrors ? (
+          <div className="text-xs text-red-600 font-medium">
+            ⚠️ Issues detected
+          </div>
+        ) : (
+          <div className="text-xs text-yellow-600 font-medium">
+            ⏳ Partial setup
+          </div>
+        )}
       </div>
-      <ul className="text-sm space-y-1">
+
+      <div className="grid gap-1 text-sm">
         {checks.map((c, i) => (
-          <li key={i} className="flex items-center gap-2">
-            <span
-              className={
-                c.ok
-                  ? "text-green-600"
-                  : c.ok === false
-                  ? "text-red-600"
-                  : "opacity-60"
-              }
-            >
-              {c.ok ? "✔" : c.ok === false ? "✖" : "…"}
+          <div key={i} className="flex items-center gap-2">
+            <span className="text-xs">
+              {c.ok === true ? "✅" : c.ok === false ? "❌" : "⏳"}
             </span>
-            <span className="min-w-[220px]">{c.label}</span>
-            {c.detail && (
-              <span className="text-xs opacity-70 break-all">{c.detail}</span>
-            )}
-          </li>
+            <span className="min-w-0 flex-1 font-medium">{c.label}</span>
+            <span className="text-xs opacity-70 break-all max-w-xs">
+              {c.detail}
+            </span>
+          </div>
         ))}
-      </ul>
-      <div className="text-xs opacity-60">
-        Tip: use the header **Connect storage** button to complete W3UP login
-        (magic link).
       </div>
+
+      {hasErrors && (
+        <div className="text-xs opacity-70 pt-2 border-t">
+          <div className="font-medium mb-1">Fix issues:</div>
+          <div>• Update .env file with correct contract addresses</div>
+          <div>• Ensure you're on the right network (check VITE_CHAIN_ID)</div>
+          <div>• Deploy contracts if they don't exist</div>
+          <div>• Check RPC endpoint connectivity</div>
+        </div>
+      )}
+
+      {allGood && (
+        <div className="text-xs opacity-70 pt-2 border-t">
+          <div className="font-medium mb-1">🎉 Ready to go!</div>
+          <div>• Connect your wallet above</div>
+          <div>• Create your first NFT content</div>
+          <div>• Explore the fork tree and voting system</div>
+        </div>
+      )}
     </section>
   );
 }

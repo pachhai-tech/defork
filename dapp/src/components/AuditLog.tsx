@@ -80,6 +80,24 @@ export function AuditLog() {
     })();
   }, []);
 
+  const formatArgs = (args: Record<string, unknown>) => {
+    const formatted: Record<string, string> = {};
+    for (const [key, value] of Object.entries(args)) {
+      if (typeof value === "bigint") {
+        formatted[key] = value.toString();
+      } else if (typeof value === "string" && value.startsWith("0x")) {
+        // Truncate long hex values
+        formatted[key] =
+          value.length > 10
+            ? `${value.slice(0, 6)}...${value.slice(-4)}`
+            : value;
+      } else {
+        formatted[key] = String(value);
+      }
+    }
+    return formatted;
+  };
+
   return (
     <section className="space-y-3">
       <h2 className="font-semibold text-lg">Contract Activity</h2>
@@ -88,13 +106,28 @@ export function AuditLog() {
       {!loading && !err && rows.length === 0 && (
         <div className="opacity-70 text-sm">No recent events.</div>
       )}
-      <div className="grid gap-2">
+      <div className="grid gap-2 max-h-96 overflow-y-auto">
         {rows.map((r, i) => (
           <div key={`${r.txHash}-${i}`} className="border rounded p-2 text-xs">
-            <div className="font-medium">{r.eventName}</div>
-            <div className="opacity-70 break-all">tx: {r.txHash}</div>
-            <pre className="mt-1 bg-gray-50 p-2 rounded overflow-auto">
-              {JSON.stringify(r.args, null, 2)}
+            <div className="flex items-center justify-between mb-2">
+              <div className="font-medium">{r.eventName}</div>
+              <div className="text-xs opacity-50">
+                Block {r.blockNumber.toString()}
+              </div>
+            </div>
+            <div className="opacity-70 break-all mb-2">
+              tx:{" "}
+              <a
+                href={`https://hashscan.io/testnet/transaction/${r.txHash}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-500 hover:underline"
+              >
+                {r.txHash}
+              </a>
+            </div>
+            <pre className="bg-gray-50 p-2 rounded overflow-auto text-xs">
+              {JSON.stringify(formatArgs(r.args), null, 2)}
             </pre>
           </div>
         ))}

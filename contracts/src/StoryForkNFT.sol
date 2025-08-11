@@ -92,6 +92,20 @@ contract StoryForkNFT is ERC721, ERC2981, Ownable {
         emit TokenURIUpdated(tokenId, newUri);
     }
 
+    /// @notice Set content hash for verification
+    function setContentHash(uint256 tokenId, bytes32 contentHash) external {
+        _requireOwned(tokenId);
+        address author = provenance[tokenId].author;
+        require(
+            msg.sender == author ||
+                msg.sender == ownerOf(tokenId) ||
+                isAdmin[msg.sender],
+            "not authorized"
+        );
+        contentHashOf[tokenId] = contentHash;
+        emit ContentHashSet(tokenId, contentHash);
+    }
+
     /// @notice Mint a new genesis content NFT with per-token royalty override (optional).
     /// @param to recipient
     /// @param uri full ipfs://... JSON metadata URI
@@ -109,36 +123,90 @@ contract StoryForkNFT is ERC721, ERC2981, Ownable {
         ContributionType kType,
         string calldata modelId
     ) external returns (uint256) {
-        _tokenIdTracker += 1;
-        uint256 newId = _tokenIdTracker;
+        uint256 tokenId = ++_tokenIdTracker;
 
-        _safeMint(to, newId);
-        tokenUris[newId] = uri;
+        _mint(to, tokenId);
 
-        if (royaltyReceiver != address(0) && royaltyBps > 0) {
-            _setTokenRoyalty(newId, royaltyReceiver, royaltyBps);
-        }
-
-        provenance[newId] = Provenance({
-            author: to,
+        tokenUris[tokenId] = uri;
+        provenance[tokenId] = Provenance({
+            author: msg.sender,
             contentType: cType,
             contributionType: kType,
             modelId: modelId
         });
 
-        emit GenesisCreated(newId, to, uri);
-        return newId;
+        // Set per-token royalty if specified
+        if (royaltyReceiver != address(0) && royaltyBps > 0) {
+            _setTokenRoyalty(tokenId, royaltyReceiver, royaltyBps);
+        }
+
+        emit GenesisCreated(tokenId, msg.sender, uri);
+        return tokenId;
     }
 
-    /// @notice Set SHA-256 content hash for a token. Callable by the token's author or owner.
-    function setContentHash(uint256 tokenId, bytes32 contentHash) external {
+    /// @notice Batch mint multiple tokens (for efficiency)
+    function batchMint(
+        address[] calldata recipients,
+        string[] calldata uris,
+        ContentType[] calldata cTypes,
+        ContributionType[] calldata kTypes,
+        string[] calldata modelIds
+    ) external returns (uint256[] memory tokenIds) {
+        require(recipients.length == uris.length, "Array length mismatch");
+        require(recipients.length == cTypes.length, "Array length mismatch");
+        require(recipients.length == kTypes.length, "Array length mismatch");
+        require(recipients.length == modelIds.length, "Array length mismatch");
+
+        tokenIds = new uint256[](recipients.length);
+
+        for (uint256 i = 0; i < recipients.length; i++) {
+            uint256 tokenId = ++_tokenIdTracker;
+            _mint(recipients[i], tokenId);
+
+            tokenUris[tokenId] = uris[i];
+            provenance[tokenId] = Provenance({
+                author: msg.sender,
+                contentType: cTypes[i],
+                contributionType: kTypes[i],
+                modelId: modelIds[i]
+            });
+
+            tokenIds[i] = tokenId;
+            emit GenesisCreated(tokenId, msg.sender, uris[i]);
+        }
+
+        return tokenIds;
+    }
+
+    /// @notice Get token metadata efficiently
+    function getTokenInfo(
+        uint256 tokenId
+    )
+        external
+        view
+        returns (
+            string memory uri,
+            address author,
+            ContentType contentType,
+            ContributionType contributionType,
+            string memory modelId,
+            bytes32 contentHash
+        )
+    {
         _requireOwned(tokenId);
-        address author = provenance[tokenId].author;
-        require(
-            msg.sender == author || msg.sender == ownerOf(tokenId),
-            "not authorized"
+        Provenance memory prov = provenance[tokenId];
+        return (
+            tokenUris[tokenId],
+            prov.author,
+            prov.contentType,
+            prov.contributionType,
+            prov.modelId,
+            contentHashOf[tokenId]
         );
-        contentHashOf[tokenId] = contentHash;
-        emit ContentHashSet(tokenId, contentHash);
+    }
+
+    /// @notice Check if token exists
+    function exists(uint256 tokenId) external view returns (bool) {
+        return _ownerOf(tokenId) != address(0);
     }
 }

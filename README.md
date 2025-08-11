@@ -58,10 +58,10 @@ cd contracts
 cp .env.example .env
 
 forge build
-forge script script/Deploy.s.sol:Deploy --rpc-url testnet --broadcast -vvvv --gas-price 100000000000000
+forge script script/Deploy.s.sol:Deploy --rpc-url testnet --broadcast -vvvv --legacy --slow
 ```
 
-Copy the printed address into `dapp/.env` as `VITE_CONTRACT_ADDRESS`, set `VITE_CHAIN_ID` to `296` (testnet) or your target, and `VITE_RPC_URL` to the Hashio endpoint above.
+Copy the printed address into `contracts/.env` and `dapp/.env` as `VITE_NFT_ADDRESS`, `VITE_REGISTRY_ADDRESS`, `VITE_ROYALTY_MANAGER_ADDRESS` and `VITE_VOTING_POOL_ADDRESS`. Also, set `VITE_CHAIN_ID` to `296` (testnet) or your target, and `VITE_RPC_URL` to the Hashio endpoint above.
 
 ### Verify contracts
 
@@ -74,25 +74,45 @@ source .env
 Verify StoryForkNFT contract:
 
 ```bash
-forge verify-contract 0x9045C586971F813b0F048F72030c05F3E121fE9D \
- src/StoryForkNFT.sol:StoryForkNFT \
- --chain-id 296 \
- --verifier sourcify \
- --verifier-url "https://server-verify.hashscan.io/" \
- --constructor-args $(cast abi-encode "constructor(address,uint96)" $ROYALTY_RECEIVER $DEFAULT_ROYALTY_BPS)
+forge verify-contract $VITE_NFT_ADDRESS \
+  src/StoryForkNFT.sol:StoryForkNFT \
+  --chain-id 296 \
+  --verifier sourcify \
+  --verifier-url "https://server-verify.hashscan.io/" \
+  --constructor-args $(cast abi-encode "constructor(address,uint96)" $ROYALTY_RECEIVER $DEFAULT_ROYALTY_BPS)
 ```
 
 Verify ForkRegistry contract:
 
 ```bash
-NFT_ADDR=0x9045C586971F813b0F048F72030c05F3E121fE9D
-
-forge verify-contract 0xefea6A7f16fd3E0E89d0ACc8f6676398D7D762EB \
+forge verify-contract $VITE_REGISTRY_ADDRESS \
   src/ForkRegistry.sol:ForkRegistry \
   --chain-id 296 \
   --verifier sourcify \
-  --verifier-url https://server-verify.hashscan.io \
-  --constructor-args $(cast abi-encode "constructor(address)" $NFT_ADDR)
+  --verifier-url "https://server-verify.hashscan.io/" \
+  --constructor-args $(cast abi-encode "constructor(address)" $VITE_REGISTRY_ADDRESS)
+```
+
+Verify RoyaltyManager contract:
+
+```bash
+forge verify-contract $VITE_ROYALTY_MANAGER_ADDRESS \
+  src/RoyaltyManager.sol:RoyaltyManager \
+  --chain-id 296 \
+  --verifier sourcify \
+  --verifier-url "https://server-verify.hashscan.io/" \
+  --constructor-args $(cast abi-encode "constructor(address,address,address)" $VITE_NFT_ADDRESS $VITE_REGISTRY_ADDRESS $ROYALTY_RECEIVER)
+```
+
+Verify VotingPool contract:
+
+```bash
+forge verify-contract $VITE_VOTING_POOL_ADDRESS \
+  src/VotingPool.sol:VotingPool \
+  --chain-id 296 \
+  --verifier sourcify \
+  --verifier-url "https://server-verify.hashscan.io/" \
+  --constructor-args $(cast abi-encode "constructor(address,address,address[])" $VITE_NFT_ADDRESS $VITE_ROYALTY_MANAGER_ADDRESS [$USDC_ADDRESS,$WETH_ADDRESS])
 ```
 
 ### Explorer Links & Tx Tracking

@@ -1,8 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { readContract } from "@wagmi/core";
 import { config } from "../config/wallet";
-import { ABI, CONTRACT_ADDRESS } from "../config/contract";
-import { REGISTRY_ABI, REGISTRY_ADDRESS } from "../config/registry";
+import {
+  ABI,
+  CONTRACT_ADDRESS,
+  REGISTRY_ABI,
+  REGISTRY_ADDRESS
+} from "../config/contract";
 import {
   createPublicClient,
   defineChain,
@@ -12,12 +16,22 @@ import {
 } from "viem";
 import { ipfsToHttp } from "../lib/ipfs";
 
-type Node = { id: number; children: number[] };
+interface ForkExplorerProps {
+  onForkSelect?: (tokenId: number) => void;
+  onCreateFork?: (parentId: number) => void;
+  onViewContent?: (tokenId: number) => void;
+}
 
-export function ForkExplorer() {
+export function ForkExplorer({
+  onForkSelect,
+  onCreateFork,
+  onViewContent
+}: ForkExplorerProps) {
   const [edges, setEdges] = useState<{ parent: number; child: number }[]>([]);
   const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState(0);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [expandedNodes, setExpandedNodes] = useState<Set<number>>(new Set([1]));
 
   async function load() {
     setLoading(true);
@@ -119,55 +133,150 @@ export function ForkExplorer() {
     return { kids, roots };
   }, [edges, total]);
 
+  const toggleExpanded = (tokenId: number) => {
+    const newExpanded = new Set(expandedNodes);
+    if (newExpanded.has(tokenId)) {
+      newExpanded.delete(tokenId);
+    } else {
+      newExpanded.add(tokenId);
+    }
+    setExpandedNodes(newExpanded);
+  };
+
+  const Tree = ({
+    id,
+    kids,
+    depth
+  }: {
+    id: number;
+    kids: Record<number, number[]>;
+    depth: number;
+  }) => {
+    const children = kids[id] || [];
+    const isExpanded = expandedNodes.has(id);
+    const hasChildren = children.length > 0;
+
+    // Filter based on search
+    if (searchQuery && !id.toString().includes(searchQuery)) {
+      return null;
+    }
+
+    return (
+      <div style={{ marginLeft: depth * 20 }} className="mb-2">
+        <div className="border rounded p-3 bg-white hover:shadow-sm transition-shadow">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              {hasChildren && (
+                <button
+                  onClick={() => toggleExpanded(id)}
+                  className="px-2 py-1 border rounded text-xs hover:bg-gray-50"
+                >
+                  {isExpanded ? "−" : "+"}
+                </button>
+              )}
+
+              <div>
+                <div className="font-medium">
+                  <span
+                    className="cursor-pointer hover:text-blue-600 transition-colors"
+                    onClick={() => onForkSelect?.(id)}
+                  >
+                    Content #{id}
+                  </span>
+                </div>
+                <div className="text-xs opacity-70">
+                  {hasChildren ? `${children.length} forks` : "No forks yet"} •
+                  Depth {depth}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => onViewContent?.(id)}
+                className="px-2 py-1 border rounded text-xs hover:bg-gray-50"
+              >
+                👁 View
+              </button>
+              <button
+                onClick={() => onCreateFork?.(id)}
+                className="px-2 py-1 border rounded text-xs hover:bg-blue-50"
+              >
+                🍴 Fork
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {isExpanded && hasChildren && (
+          <div className="mt-2">
+            {children.map((childId) => (
+              <Tree key={childId} id={childId} kids={kids} depth={depth + 1} />
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
-    <section className="space-y-3">
-      <h2 className="font-semibold text-lg">Fork Explorer</h2>
+    <section className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="font-semibold text-lg">🌳 Fork Explorer</h2>
+        <button
+          onClick={load}
+          disabled={loading}
+          className="px-3 py-1 border rounded text-sm hover:bg-gray-50"
+        >
+          {loading ? "Refreshing..." : "🔄 Refresh"}
+        </button>
+      </div>
+
       <div className="flex items-center gap-3 text-sm opacity-70">
         <span>
           Tokens: {total} • Edges: {edges.length}
         </span>
+      </div>
+
+      {/* Search */}
+      <div className="flex gap-2">
+        <input
+          type="text"
+          className="border rounded p-2 flex-1"
+          placeholder="Search by token ID..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
         <button
-          className="px-2 py-1 border rounded opacity-100"
-          onClick={() => load()}
-          disabled={loading}
+          onClick={() => setSearchQuery("")}
+          className="px-3 py-1 border rounded hover:bg-gray-50"
         >
-          {loading ? "Refreshing…" : "Manual refresh"}
+          Clear
         </button>
       </div>
-      {graph.roots.length === 0 ? (
-        <div className="opacity-70">No items yet.</div>
-      ) : (
-        <div className="space-y-2">
-          {graph.roots.map((root) => (
-            <Tree key={root} id={root} kids={graph.kids} depth={0} />
-          ))}
-        </div>
-      )}
-    </section>
-  );
-}
 
-function Tree({
-  id,
-  kids,
-  depth
-}: {
-  id: number;
-  kids: Record<number, number[]>;
-  depth: number;
-}) {
-  const children = kids[id] || [];
-  return (
-    <div style={{ marginLeft: depth * 16 }}>
-      <div className="flex items-center gap-2">
-        <div className="font-mono">#{id}</div>
-        {children.length > 0 && (
-          <span className="text-xs opacity-60">({children.length} forks)</span>
+      {/* Tree Display */}
+      <div className="space-y-2 max-h-96 overflow-y-auto">
+        {graph.roots.length === 0 ? (
+          <div className="text-center py-8 opacity-70">
+            No content items found. Create the first one above! ✨
+          </div>
+        ) : (
+          graph.roots.map((rootId) => (
+            <Tree key={rootId} id={rootId} kids={graph.kids} depth={0} />
+          ))
         )}
       </div>
-      {children.map((c) => (
-        <Tree key={c} id={c} kids={kids} depth={depth + 1} />
-      ))}
-    </div>
+
+      {/* Legend */}
+      <div className="text-xs opacity-70 border-t pt-3">
+        <div className="font-medium mb-1">How to use:</div>
+        <div>• Click token names to select for voting</div>
+        <div>• Use 👁 View to see content in Gallery</div>
+        <div>• Use 🍴 Fork to create new branches</div>
+        <div>• + / − buttons expand/collapse fork trees</div>
+        <div>• Tree shows parent-child relationships tracked on-chain</div>
+      </div>
+    </section>
   );
 }

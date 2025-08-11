@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAccount, useReadContract, useWriteContract } from "wagmi";
-import { ABI, CONTRACT_ADDRESS } from "../config/contract";
-import { REGISTRY_ADDRESS } from "../config/registry";
+import { ABI, CONTRACT_ADDRESS, REGISTRY_ADDRESS } from "../config/contract";
 import { fetchIPFS, putJSON } from "../lib/ipfs";
 import { readContract } from "@wagmi/core";
 import { config } from "../config/wallet";
@@ -33,7 +32,7 @@ export function AdminPanel() {
   const [loading, setLoading] = useState(false);
   const [action, setAction] = useState<"hide" | "unhide">("hide");
   const [contentIdsText, setContentIdsText] = useState("");
-  const { writeContractAsync } = useWriteContract();
+  const { writeContract } = useWriteContract();
 
   if (!isAdmin) {
     return (
@@ -80,11 +79,19 @@ export function AdminPanel() {
 
         // upload new metadata and set tokenURI
         const newUri = await putJSON(m, `meta_${id}.json`);
-        await writeContractAsync({
-          address: CONTRACT_ADDRESS,
-          abi: ABI,
-          functionName: "setTokenUri",
-          args: [BigInt(id), newUri]
+        await new Promise<void>((resolve, reject) => {
+          writeContract(
+            {
+              address: CONTRACT_ADDRESS,
+              abi: ABI,
+              functionName: "setTokenUri",
+              args: [BigInt(id), newUri]
+            },
+            {
+              onSuccess: () => resolve(),
+              onError: (error) => reject(error)
+            }
+          );
         });
         push({ kind: "success", message: `#${id} ${action}d` });
       }
@@ -146,11 +153,22 @@ export function AdminPanel() {
         const hex = Array.from(new Uint8Array(digest))
           .map((b) => b.toString(16).padStart(2, "0"))
           .join("");
-        await writeContractAsync({
-          address: CONTRACT_ADDRESS,
-          abi: ABI,
-          functionName: "setContentHash",
-          args: [BigInt(id), "0x" + hex]
+
+        const contentHash = ("0x" + hex) as `0x${string}`;
+
+        await new Promise<void>((resolve, reject) => {
+          writeContract(
+            {
+              address: CONTRACT_ADDRESS,
+              abi: ABI,
+              functionName: "setContentHash",
+              args: [BigInt(id), contentHash]
+            },
+            {
+              onSuccess: () => resolve(),
+              onError: (error) => reject(error)
+            }
+          );
         });
         push({ kind: "success", message: `#${id} contentHash updated` });
       }
